@@ -55,28 +55,62 @@ var world = new p2.World()
 
 // Then a floor
 var groundBody = new p2.Body({
-  mass: 0 // Setting mass to 0 makes this body static
+  mass: 0, // Setting mass to 0 makes this body static
+  position: [0, 50]
 })
 var groundShape = new p2.Plane()
+groundShape.styles = {
+  lineWidth: 1
+}
 groundBody.addShape(groundShape)
 world.addBody(groundBody)
+
+makeCharacter('player1', { x: 50, y: 100 })
 
 // Used by our animation loop to store the time
 var then = null
 
-requestAnimationFrame(draw)
+requestAnimationFrame(render)
 
-function draw (now) {
-  requestAnimationFrame(draw)
+function render (now) {
+  requestAnimationFrame(render)
   // dt stands for delta time, our 'time between frames' - used for smooth animating
   var dt = now - (then || now)
   then = now
 
   world.step(dt / 1000)
+
+  worldContext.clearRect(0, 0, worldCanvas.width, worldCanvas.height)
+  world.bodies.forEach(function (body) {
+    drawBody(body)
+  })
 }
 
-function render () {
+function drawBody (body) {
+  // 
+  body.shapes.forEach(function (shape, i) {
+    if (shape.type === p2.Shape.CIRCLE) return console.log(shape, 'is a circle, we need to use arc')
 
+    worldContext.beginPath()
+    worldContext.fillStyle = shape.styles && shape.styles.fillStyle ? shape.styles.fillStyle : '#000000'
+    worldContext.strokeStyle = shape.styles && shape.styles.strokeStyle ? shape.styles.strokeStyle : '#000000'
+    worldContext.lineWidth = shape.styles && shape.styles.lineWidth ? shape.styles.lineWidth : 2
+    
+    if (shape.type === p2.Shape.PLANE) {
+      worldContext.moveTo(0, body.position[1])
+      worldContext.lineTo(worldCanvas.width, body.position[1])
+    } else {
+      var shapePosition = [body.position[0] +  body.shapeOffsets[i][0], body.position[1] +  body.shapeOffsets[i][1]]
+      worldContext.moveTo(shapePosition[0], shapePosition[1])
+      shape.vertices.forEach(function (vertex) {
+        worldContext.lineTo(shapePosition[0] + vertex[0], shapePosition[1] + vertex[1])
+        //console.log(offset[0], offset[1])
+      })
+    }
+    worldContext.closePath()
+    worldContext.fill()
+    worldContext.stroke()
+  })
 }
 
 function makeCharacter (name, position) {
@@ -84,21 +118,14 @@ function makeCharacter (name, position) {
   // Return an object that describes our new character
   var characterBody = new p2.Body({
     mass: 5,
-    position: [ position.x, position.y ]
+    position: [ position.x, position.y ],
     fixedRotation: true
   })
 
-  var characterShape = new p2.Rectangle(10, 50)
+  var characterShape = new p2.Rectangle(1, 5)
   characterBody.addShape(characterShape)
-  world.addBody(characterBody)
 
-  // body.cof = 0.95
-  // //body.offset = { x: 0, y: 50 }
-  // body.restitution = 0
-  // body.mass = 0.00001
-  // body.view = new Image(20, 120)
-  // body.view.src = 'img/' + name + '.png'
-  body.gameData = {
+  characterBody.gameData = {
     name: name,
     health: 100,
     takeDamage: function (damage) {
@@ -110,6 +137,18 @@ function makeCharacter (name, position) {
       game.state = 'gameover'
     }
   }
+
+  world.addBody(characterBody)
+
+
+  // body.cof = 0.95
+  // body.offset = { x: 0, y: 50 }
+  // body.restitution = 0
+  // body.mass = 0.00001
+  // body.view = new Image(20, 120)
+  // body.view.src = 'img/' + name + '.png'
+
+  console.log(characterBody)
 }
 
 

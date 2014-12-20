@@ -5,7 +5,18 @@ html, body {
   padding: 0;
 }
 
-canvas#viewport {
+canvas#world {
+  /*
+    So, p2.js treats coordinates 0,0 as the bottom left corner, while canvas treats 0,0 as the top left corner.
+    We could reconcile this by flipping every Y coordinate in our javascript, but I'm just gonna ignore it and
+    flip the entire screen upside down; this is an awful hack, and I am unrepentant.
+  */
+  -moz-transform: scaleY(-1);
+  -o-transform: scaleY(-1);
+  -webkit-transform: scaleY(-1);
+  transform: scaleY(-1);
+  filter: FlipV;
+  -ms-filter: "FlipV";
   z-index: 1;
   background-color: #88CCE7;
   position: absolute;
