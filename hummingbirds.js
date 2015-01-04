@@ -37,6 +37,12 @@ var hammer = new Hammer(uiCanvas)
 // HammerJS only listens for horizontal drags by default, here we tell it listen for all directions
 hammer.get('pan').set({ direction: Hammer.DIRECTION_ALL })
 
+var camera = {
+  zoom: 1,
+  x: 0,
+  y: 0
+}
+
 var messages = {
   'aiming-jump': 'Aim a jump by dragging in the opposite direction',
   'aiming-shot': 'Shots bounce once before exploding'
@@ -108,6 +114,18 @@ function render (now) {
   requestAnimationFrame(render)
 }
 
+function translateToCamera (position) {
+  var x = (position[0] - camera.x) * camera.zoom
+  var y = (position[1] - camera.y) * camera.zoom
+  return [x, y]
+}
+
+function scaleToCamera (position) {
+  var x = position[0] * camera.zoom
+  var y = position[1] * camera.zoom
+  return [x, y]
+}
+
 function drawBody (body) {
   body.shapes.forEach(function (shape, i) {
     worldContext.beginPath()
@@ -116,14 +134,18 @@ function drawBody (body) {
     worldContext.lineWidth = shape.styles && shape.styles.lineWidth ? shape.styles.lineWidth : 2
     
     if (shape.type === p2.Shape.PLANE) {
-      worldContext.moveTo(0, body.position[1])
-      worldContext.lineTo(worldCanvas.width, body.position[1])
+      worldContext.moveTo(0, translateToCamera(body.position)[1])
+      worldContext.lineTo(worldCanvas.width, translateToCamera(body.position)[1])
     } else if (shape.type === p2.Shape.CIRCLE) {
       var shapePosition = [body.position[0] +  body.shapeOffsets[i][0], body.position[1] +  body.shapeOffsets[i][1]]
+      shapePosition = translateToCamera(shapePosition)
       worldContext.arc(shapePosition[0], shapePosition[1], shape.radius, 0, 2 * Math.PI)
     } else {
       var shapePosition = [body.position[0] +  body.shapeOffsets[i][0], body.position[1] +  body.shapeOffsets[i][1]]
-      var vertices = shape.vertices
+      shapePosition = translateToCamera(shapePosition)
+      var vertices = shape.vertices.map(function (vertex) {
+        return scaleToCamera(vertex)
+      })
       worldContext.moveTo(shapePosition[0] + vertices[0][0], shapePosition[1] + vertices[0][1])
       vertices.slice(1, vertices.length).forEach(function (vertex) {
         worldContext.lineTo(shapePosition[0] + vertex[0], shapePosition[1] + vertex[1])
@@ -174,7 +196,8 @@ function drawUI () {
   game.explosions.forEach(function (explosion, i) {
     if (explosion.size >= explosion.maxSize) game.explosions.splice(i, 1)
     uiContext.beginPath()
-    uiContext.arc(explosion.position[0], uiCanvas.height - explosion.position[1], explosion.size, 0, Math.PI * 2, false)
+    var translatedPosition = translateToCamera(explosion.position)
+    uiContext.arc(translatedPosition[0], uiCanvas.height - translatedPosition[1], explosion.size, 0, Math.PI * 2, false)
     uiContext.lineWidth = explosion.size * 0.1
     uiContext.strokeStyle = styles.colours.ball1
     uiContext.fillStyle = styles.colours.explosion
@@ -224,9 +247,11 @@ function drawPlayerMarker (player) {
   // Get the position of the player and draw a lil white triangle above it
   var body = world.getBodyById(player.id)
   uiContext.beginPath()
-  uiContext.moveTo(body.position[0], worldCanvas.height - body.position[1] - 40)
-  uiContext.lineTo(body.position[0] - 10, worldCanvas.height - body.position[1] - 60)
-  uiContext.lineTo(body.position[0] + 10, worldCanvas.height - body.position[1] - 60)
+  var translatedPosition = translateToCamera(body.position)
+  console.log(body, translatedPosition)
+  uiContext.moveTo(translatedPosition[0], worldCanvas.height - translatedPosition[1] - 40)
+  uiContext.lineTo(translatedPosition[0] - 10, worldCanvas.height - translatedPosition[1] - 60)
+  uiContext.lineTo(translatedPosition[0] + 10, worldCanvas.height - translatedPosition[1] - 60)
   uiContext.closePath()
   uiContext.strokeStyle = 'white'
   uiContext.lineWidth = 3
