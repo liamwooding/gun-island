@@ -88,23 +88,23 @@ makeCharacter('player1', { x: 50, y: 61 })
 makeCharacter('player2', { x: worldCanvas.width - 50, y: 61 })
 
 // Set up our click listeners for the action buttons (using jquery, for readability's sake)
-$('button.jump').on('click', function () {
+$('div.buttons').on('click', 'button.jump:not(.active)', function () {
+  $('div.buttons button').removeClass('active')
   $(this).addClass('active')
   game.currentTurn.state = 'aiming-jump'
   aim(function (angle, power) {
-    jump(angle, power, function () {
-      console.log('jumped!')
-    })
+    jump(angle, power)
   })
 })
-$('button.shoot').on('click', function () {
+$('div.buttons').on('click', 'button.shoot:not(.active)', function () {
+  $('div.buttons button').removeClass('active')
   $(this).addClass('active')
   game.currentTurn.state = 'aiming-shot'
-    aim(function (angle, power) {
-      fireProjectile(angle, power)
-    })
+  aim(function (angle, power) {
+    fireProjectile(angle, power)
+  })
 })
-$('button.active').on('click', function () {
+$('div.buttons').on('click', 'button.active', function () {
   $(this).removeClass('active')
   setupCameraControls()
 })
@@ -343,6 +343,7 @@ function aim (callback) {
     var power = translateDistanceToPower(event.distance)
     if (power <= 10) return
     hammer.off('panstart pan panend')
+    setupCameraControls()
     // The player has stopped dragging, let loose!
     callback(event.angle, power)
     game.aimArrow = null
