@@ -54,6 +54,17 @@ window.addEventListener('resize', function () {
 var world = new p2.World()
 world.sleepMode = p2.World.BODY_SLEEPING
 
+// Set up our materials
+var projectileMaterial = new p2.Material()
+var terrainMaterial = new p2.Material()
+var characterMaterial = new p2.Material()
+
+var projectileTerrainContactMaterial = new p2.ContactMaterial(projectileMaterial, terrainMaterial, {
+  restitution: 0.7
+})
+
+world.addContactMaterial(projectileTerrainContactMaterial)
+
 // Then a floor
 var groundBody = new p2.Body({
   mass: 0, // Setting mass to 0 makes this body static
@@ -63,11 +74,12 @@ var groundShape = new p2.Plane()
 groundShape.styles = {
   lineWidth: 1
 }
+groundShape.material = terrainMaterial
 groundBody.addShape(groundShape)
 world.addBody(groundBody)
 
-makeCharacter('player1', { x: 50, y: 100 })
-makeCharacter('player2', { x: worldCanvas.width - 50, y: 100 })
+makeCharacter('player1', { x: 50, y: 61 })
+makeCharacter('player2', { x: worldCanvas.width - 50, y: 61 })
 
 // Used by our animation loop to store the time
 var then = null
@@ -75,12 +87,11 @@ var then = null
 requestAnimationFrame(render)
 
 function render (now) {
-  requestAnimationFrame(render)
   // dt stands for delta time, our 'time between frames' - used for smooth animating
-  var dt = now - (then || now)
+  var dt = (now - (then || now)) / 1000
   then = now
 
-  world.step(dt / 1000, dt)
+  world.step(0.017, dt, 3)
 
   worldContext.clearRect(0, 0, worldCanvas.width, worldCanvas.height)
   world.bodies.forEach(function (body) {
@@ -93,12 +104,12 @@ function render (now) {
     return body.sleepState === p2.Body.SLEEPING
   })
   if (sleeping && game.currentTurn.actionsRemaining == 0) nextTurn()
+
+  requestAnimationFrame(render)
 }
 
 function drawBody (body) {
   body.shapes.forEach(function (shape, i) {
-    if (shape.type === p2.Shape.CIRCLE) return console.log(shape, 'is a circle, we need to use arc')
-
     worldContext.beginPath()
     worldContext.fillStyle = shape.styles && shape.styles.fillStyle ? shape.styles.fillStyle : '#000000'
     worldContext.strokeStyle = shape.styles && shape.styles.strokeStyle ? shape.styles.strokeStyle : '#000000'
@@ -107,6 +118,9 @@ function drawBody (body) {
     if (shape.type === p2.Shape.PLANE) {
       worldContext.moveTo(0, body.position[1])
       worldContext.lineTo(worldCanvas.width, body.position[1])
+    } else if (shape.type === p2.Shape.CIRCLE) {
+      var shapePosition = [body.position[0] +  body.shapeOffsets[i][0], body.position[1] +  body.shapeOffsets[i][1]]
+      worldContext.arc(shapePosition[0], shapePosition[1], shape.radius, 0, 2 * Math.PI)
     } else {
       var shapePosition = [body.position[0] +  body.shapeOffsets[i][0], body.position[1] +  body.shapeOffsets[i][1]]
       var vertices = shape.vertices
@@ -160,7 +174,7 @@ function drawUI () {
   game.explosions.forEach(function (explosion, i) {
     if (explosion.size >= explosion.maxSize) game.explosions.splice(i, 1)
     uiContext.beginPath()
-    uiContext.arc(explosion.position.x, explosion.position.y, explosion.size, 0, Math.PI * 2, false)
+    uiContext.arc(explosion.position[0], uiCanvas.height - explosion.position[1], explosion.size, 0, Math.PI * 2, false)
     uiContext.lineWidth = explosion.size * 0.1
     uiContext.strokeStyle = styles.colours.ball1
     uiContext.fillStyle = styles.colours.explosion
@@ -230,7 +244,7 @@ function nextTurn () {
   aim(function (angle, power) {
     jump(angle, power, function () {
       game.currentTurn.state = 'aiming-shot'
-      aim(world, function (angle, power) {
+      aim(function (angle, power) {
         fireProjectile(angle, power)
       })
     })
@@ -284,63 +298,56 @@ function jump (angle, power, callback) {
   game.currentTurn.actionsRemaining--
   game.currentTurn.state = 'jumping'
   var radians = angle * Math.PI / 180
-  var stepX = (power * Math.cos(radians)) / 100
-  var stepY = (power * Math.sin(radians)) / 100
-  player.applyForce([stepX, stepY], player.position)
+  var stepX = (power * Math.cos(radians))
+  var stepY = (power * Math.sin(radians))
+  console.log(stepX, stepY)
+  player.velocity = [-stepX, stepY]
   game.activeBodies.push(player.id)
-  console.log(player)
+  console.log(player.velocity)
   callback()
 }
 
 function fireProjectile (angle, power) {
-  var player = game.characters[0]
+  var player = world.getBodyById(game.characters[0].id)
   game.currentTurn.actionsRemaining--
   game.currentTurn.state = 'firing'
   game.characters.forEach(function (char) { char.treatment = 'static' })
   // We use the angle to work out how many pixels we should move the projectile each frame
   var radians = angle * Math.PI / 180
-  var stepX = (power * Math.cos(radians)) / 8000
-  var stepY = (power * Math.sin(radians)) / 8000
-  var startX = Math.cos(radians) * 40
-  var startY = Math.sin(radians) * 40
+  var stepX = (power * Math.cos(radians)) * 1.5
+  var stepY = (power * Math.sin(radians)) * 1.5
+  var startX = Math.cos(radians) * 20
+  var startY = Math.sin(radians) * 20
   console.log(startX, startY)
-  var projectile = Physics.body('circle', {
-    x: player.state.pos.x - startX,
-    y: player.state.pos.y - startY,
-    radius: 8,
-    styles: {
-      fillStyle: styles.colours.ball1
-    }
+  var projectileBody = new p2.Body({
+    mass: 3,
+    position: [player.position[0] + -startX, player.position[1] + startY]
   })
-  projectile.restitution = 0.5
-  projectile.cof = 0.1
-  projectile.mass = 0.1
-  projectile.applyForce({ x: -stepX, y: -stepY })
-  projectile.gameData = {
+  var projectileShape = new p2.Circle(5)
+  projectileShape.material = projectileMaterial
+  projectileBody.addShape(projectileShape)
+
+  world.addBody(projectileBody)
+  projectileBody.velocity = [-stepX, stepY]
+  projectileBody.gameData = {
     bounced: 0
   }
 
-  world.add(projectile)
-  game.activeObjects.push(projectile)
+  game.activeBodies.push(projectileBody.id)
 
-  world.on('collisions:detected', function (data) {
-    data.collisions.forEach(function (collision) {
-      var impactedProjectile
-      if (collision.bodyA.uid == projectile.uid) impactedProjectile = collision.bodyA
-      if (collision.bodyB.uid == projectile.uid) impactedProjectile = collision.bodyB
-      
-      if (impactedProjectile) {
-        if (collision.bodyA.uid == edgeUid || collision.bodyB.uid == edgeUid) {
-          projectile.gameData.bounced++
-          impactProjectile(impactedProjectile, 0, 0, world)
-        } else if ((collision.bodyA.gameData && collision.bodyA.gameData.name) || (collision.bodyB.gameData && collision.bodyB.gameData.name)) {
-          projectile.gameData.bounced++
-          impactProjectile(impactedProjectile, 100, 0.5, world)
-        } else {
-          impactProjectile(impactedProjectile, 100, 0.5, world)
-        }
+  world.on('impact', function (impact) {
+    var impactedProjectile
+    if (impact.bodyA.id === projectileBody.id) impactedProjectile = impact.bodyA
+    if (impact.bodyB.id === projectileBody.id) impactedProjectile = impact.bodyB
+    
+    if (impactedProjectile) {
+      if (game.characters.some(function (char) { char.id === impact.bodyA.id || char.id === impact.bodyB.id })) {
+        projectile.gameData.bounced++
+        impactProjectile(impactedProjectile, 100, 0.5, world)
+      } else {
+        impactProjectile(impactedProjectile, 100, 0.5, world)
       }
-    })
+    }
   })
 }
 
@@ -351,6 +358,44 @@ function translateDistanceToPower (distance) {
   // The maths are easier if our 'max power' is 100
   power = power * 200
   return power
+}
+
+function impactProjectile (projectile, explosionSize, damageFactor, world) {
+  setTimeout(function () {
+    projectile.gameData.bounced++
+  }, 25)
+
+  game.explosions.push({
+    position: projectile.position,
+    maxSize: explosionSize,
+    size: 1
+  })
+
+  game.characters.forEach(function (char) {
+    var charBody = world.getBodyById(char.id)
+    var relativePosition = [
+      charBody.position[0] - projectile.position[0],
+      charBody.position[1] - projectile.position[1]
+    ]
+    var distance = Math.sqrt(Math.pow((relativePosition[0]), 2) + Math.pow((relativePosition[1]), 2))
+    var radians = Math.atan2(relativePosition[1], relativePosition[0])
+
+    if (distance < explosionSize) {
+      char.takeDamage((explosionSize - distance) * damageFactor)
+      var stepX = (explosionSize * Math.cos(radians)) / (Math.sqrt(distance))
+      var stepY = (explosionSize * Math.sin(radians)) / (Math.sqrt(distance))
+      console.log(charBody.velocity)
+      charBody.velocity = [ charBody.velocity[0] + stepX, charBody.velocity[1] + stepY ]
+      console.log(charBody.velocity)
+    }
+  })
+
+  world.removeBody(projectile)
+  game.activeBodies.forEach(function (bodyId, i) {
+    if (bodyId == projectile.id) game.activeBodies.splice(i, 1)
+  })
+  game.currentTurn.actionsRemaining--
+  nextTurn()
 }
 
 
@@ -524,48 +569,7 @@ function translateDistanceToPower (distance) {
 
 
 
-// function impactProjectile (projectile, explosionSize, damageFactor, world) {
-//   setTimeout(function () {
-//     projectile.gameData.bounced++
-//   }, 25)
-//   if (projectile.gameData.bounced == 0) {
-//     projectile.styles.fillStyle = styles.colours.ball2
-//     return
-//   }
-
-//   game.explosions.push({
-//     position: projectile.state.pos,
-//     maxSize: explosionSize,
-//     size: 1
-//   })
-
-//   game.characters.forEach(function (char) {
-//     var relativePosition = {
-//       x: char.state.pos.x - projectile.state.pos.x,
-//       y: char.state.pos.y - projectile.state.pos.y
-//     }
-//     var distance = Math.sqrt(Math.pow((relativePosition.x), 2) + Math.pow((relativePosition.y), 2))
-//     var radians = Math.atan2(relativePosition.y, relativePosition.x)
-
-//     if (distance < explosionSize) {
-//       world.wakeUpAll()
-//       char.gameData.takeDamage((explosionSize - distance) * damageFactor)
-//       var stepX = (explosionSize * Math.cos(radians)) / distance / 4000000
-//       var stepY = (explosionSize * Math.sin(radians)) / distance / 4000000
-//       char.treatment = 'dynamic'
-//       char.restitution = 1
-//       char.cof = 0
-//       char.applyForce({ x: stepX, y: stepY })
-//     }
-//   })
-
-//   world.removeBody(projectile)
-//   game.activeObjects.forEach(function (object, i) {
-//     if (object.uid == projectile.uid) game.activeObjects.splice(i, 1)
-//   })
-//   game.currentTurn.actionsRemaining--
-//   nextTurn(world)
-// }
+//
 
 
 
