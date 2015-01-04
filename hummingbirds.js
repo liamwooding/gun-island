@@ -87,6 +87,30 @@ world.addBody(groundBody)
 makeCharacter('player1', { x: 50, y: 61 })
 makeCharacter('player2', { x: worldCanvas.width - 50, y: 61 })
 
+// Set up our click listeners for the action buttons (using jquery, for readability's sake)
+$('button.jump').on('click', function () {
+  $(this).addClass('active')
+  game.currentTurn.state = 'aiming-jump'
+  aim(function (angle, power) {
+    jump(angle, power, function () {
+      console.log('jumped!')
+    })
+  })
+})
+$('button.shoot').on('click', function () {
+  $(this).addClass('active')
+  game.currentTurn.state = 'aiming-shot'
+    aim(function (angle, power) {
+      fireProjectile(angle, power)
+    })
+})
+$('button.active').on('click', function () {
+  $(this).removeClass('active')
+  setupCameraControls()
+})
+
+setupCameraControls()
+
 // Used by our animation loop to store the time
 var then = null
 
@@ -124,6 +148,17 @@ function scaleToCamera (position) {
   var x = position[0] * camera.zoom
   var y = position[1] * camera.zoom
   return [x, y]
+}
+
+function setupCameraControls () {
+  hammer.off('panstart pan panend')
+  hammer.on('pan', function (event) {
+    camera.x += event.velocityX
+    camera.y -= event.velocityY
+  })
+  $(document).on('mousewheel', function(event) {
+    camera.zoom += event.deltaY / 20
+  })
 }
 
 function drawBody (body) {
@@ -190,8 +225,12 @@ function makeCharacter (name, position) {
 }
 
 function drawUI () {
+  var translatedPlayerPosition = translateToCamera(world.getBodyById(game.characters[0].id).position)
+  $('.action-buttons').offset({left: translatedPlayerPosition[0], top: uiCanvas.height - translatedPlayerPosition[1]})
+
   // We draw anything which isn't governed by the physics engine in this function
   uiContext.clearRect(0, 0, uiCanvas.width, uiCanvas.height)
+
   // Draw any ongoing explosions
   game.explosions.forEach(function (explosion, i) {
     if (explosion.size >= explosion.maxSize) game.explosions.splice(i, 1)
@@ -248,7 +287,6 @@ function drawPlayerMarker (player) {
   var body = world.getBodyById(player.id)
   uiContext.beginPath()
   var translatedPosition = translateToCamera(body.position)
-  console.log(body, translatedPosition)
   uiContext.moveTo(translatedPosition[0], worldCanvas.height - translatedPosition[1] - 40)
   uiContext.lineTo(translatedPosition[0] - 10, worldCanvas.height - translatedPosition[1] - 60)
   uiContext.lineTo(translatedPosition[0] + 10, worldCanvas.height - translatedPosition[1] - 60)
@@ -259,24 +297,19 @@ function drawPlayerMarker (player) {
 }
 
 function nextTurn () {
+  console.log('next turn')
   // We take the last character from our array of characters and 'pop' it off - this is our current player
   var player = game.characters.pop()
   // We then put that character back at the start of the array, using the bizarrely-named 'unshift'
   game.characters.unshift(player)
 
   game.currentTurn.actionsRemaining = 3
-  game.currentTurn.state = 'aiming-jump'
-  aim(function (angle, power) {
-    jump(angle, power, function () {
-      game.currentTurn.state = 'aiming-shot'
-      aim(function (angle, power) {
-        fireProjectile(angle, power)
-      })
-    })
-  })
+
+  $('.action-buttons').show()
 }
 
 function aim (callback) {
+  hammer.off('panstart pan panend')
   // Start listening for the start of a mouse/finger drag
   /*
   * We're calling hammer.on three times here, to listen for three different types of events; 'panstart'
@@ -317,7 +350,8 @@ function aim (callback) {
   })
 }
 
-function jump (angle, power, callback) {
+function jump (angle, power) {
+  $('.action-buttons').hide()
   var player = world.getBodyById(game.characters[0].id)
   player.wakeUp()
   game.currentTurn.actionsRemaining--
@@ -329,10 +363,10 @@ function jump (angle, power, callback) {
   player.velocity = [-stepX, stepY]
   game.activeBodies.push(player.id)
   console.log(player.velocity)
-  callback()
 }
 
 function fireProjectile (angle, power) {
+  $('.action-buttons').hide()
   var player = world.getBodyById(game.characters[0].id)
   game.currentTurn.actionsRemaining--
   game.currentTurn.state = 'firing'

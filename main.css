@@ -36,3 +36,33 @@ canvas#ui {
   width: 100%;
   height: 100%;
 }
+.action-buttons {
+  z-index: 3;
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+.action-buttons button {
+  font-size: 0;
+  border: none;
+  border-radius: 4px;
+}
+.action-buttons .jump {
+  position: absolute;
+  top: -35px;
+  left: 10px;
+  width: 30px;
+  height: 30px;
+  background: transparent url('img/jump.png') center center / 100% auto no-repeat;
+}
+.action-buttons .shoot {
+  position: absolute;
+  bottom: -35px;
+  left: 10px;
+  width: 30px;
+  height: 30px;
+  background: transparent url('img/aim.png') center center / 100% auto no-repeat;
+}
+.action-buttons .active {
+  background: transparent url('img/cancel.png') center center / 100% auto no-repeat;
+}
