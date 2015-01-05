@@ -59,7 +59,7 @@ canvas#ui {
   left: 10px;
   width: 30px;
   height: 30px;
-  background: transparent url('img/jump.png') center center / 100% auto no-repeat;
+  background: transparent url(jump.png) center center / 100% auto no-repeat;
 }
 .action-buttons .shoot {
   position: absolute;
@@ -67,8 +67,8 @@ canvas#ui {
   left: 10px;
   width: 30px;
   height: 30px;
-  background: transparent url('img/aim.png') center center / 100% auto no-repeat;
+  background: transparent url(aim.png) center center / 100% auto no-repeat;
 }
 .action-buttons .active {
-  background: transparent url('img/cancel.png') center center / 100% auto no-repeat;
+  background: transparent url(cancel.png) center center / 100% auto no-repeat;
 }
