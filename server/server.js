@@ -10,16 +10,26 @@ Meteor.publish('Players', function () {
   return Players.find()
 })
 Meteor.publish('Frames', function () {
-  return Frames.find({}, { sort: { tick: 1 } })
+  return Frames.find()
 })
 Meteor.publish('Turns', function () {
   return Turns.find({}, {sort: { number: 1 }})
 })
 
 var world
+var pause = true
+var tick = 0
+var explosions = []
+var framesToPush = []
 
 Meteor.startup(function () {
+  console.log('starting')
   Characters.remove({})
+  Frames.remove({})
+  Players.remove({})
+  GameState.remove({})
+  Turns.remove({})
+
   Meteor.methods({
     addPlayer: function (userId) {
       makeCharacter(userId)
@@ -81,28 +91,43 @@ Meteor.startup(function () {
   groundBody.addShape(groundShape)
   world.addBody(groundBody)
 
-  var pause = true
-  var tick = 0
-  var explosions = []
+  pause = false
+  tickPhysics()
 })
 
 function tickPhysics () {
-  if (pause === true) return
+  if (pause === true) return console.log('nope')
+  if (Characters.find().count() === 0) {
+    Meteor.setTimeout(function () {
+      tickPhysics()
+    }, 1000 / 60)
+    return
+  }
   tick++
   world.step(0.017)
+  var bodies = world.bodies.map(function (body) {
+    return {
+      id: body.id,
+      position: body.position,
+      shapes: body.shapes,
+      shapeOffsets: body.shapeOffsets
+    }
+  })
   var frame = {
-    bodies: world.bodies.map(function (body) {
-      return {
-        id: body.id,
-        position: body.position,
-        shapes: body.shapes,
-        shapeOffsets: body.shapeOffsets
-      }
-    }),
+    bodies: bodies,
     explosions: explosions,
     tick: tick
   }
-  Frames.insert(frame)
+  console.log(frame.bodies[1].position[1])
+  var clonedFrame = EJSON.clone(frame)
+  framesToPush.push(clonedFrame)
+  if (framesToPush.length >= 300) {
+    Frames.insert({
+      frames: framesToPush
+    })
+    pause = true
+    framesToPush = []
+  }
   tickPhysics()
 }
 
@@ -111,7 +136,7 @@ function makeCharacter (userId) {
   // Return an object that describes our new character
   var characterBody = new p2.Body({
     mass: 5,
-    position: [ Math.random() * 500, 100 ],
+    position: [ Math.random() * 500, 200 ],
     fixedRotation: true
   })
 

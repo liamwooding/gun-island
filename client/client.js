@@ -23,18 +23,28 @@ var styles = {
   }
 }
 
+var camera = {
+  zoom: 1,
+  x: 0,
+  y: 0
+}
+
 Template.game.rendered = function () {
   Meteor.subscribe('GameState')
-  Meteor.subscribe('Characters')
+  Meteor.subscribe('Characters', {
+    onReady: function () {
+      requestAnimationFrame(render)
+      if (!localStorage.userId) localStorage.userId = Meteor.uuid()
+
+      if (Characters.find({ userId: localStorage.userId }).count() === 0) {
+        console.log(Characters.find({ userId: localStorage.userId }).fetch())
+        Meteor.call('addPlayer', localStorage.userId)
+      }
+    }
+  })
   Meteor.subscribe('Players')
   Meteor.subscribe('Frames')
   Meteor.subscribe('Turns')
-
-  if (!localStorage.userId) localStorage.userId = Meteor.uuid()
-
-  if (Characters.find({ userId: localStorage.userId }).count() === 0) {
-    Meteor.call('addPlayer', localStorage.userId)
-  }
   
   // Setup our canvas for drawing the game world onto
   worldCanvas = document.getElementById('world')
@@ -50,12 +60,6 @@ Template.game.rendered = function () {
   plugins.hammer = new Hammer(uiCanvas)
   // HammerJS only listens for horizontal drags by default, here we tell it listen for all directions
   plugins.hammer.get('pan').set({ direction: Hammer.DIRECTION_ALL })
-
-  var camera = {
-    zoom: 1,
-    x: 0,
-    y: 0
-  }
 
   // resize canvas when the browser is resized
   window.addEventListener('resize', function () {
@@ -90,32 +94,33 @@ Template.game.rendered = function () {
   setupCameraControls()
 
   Frames.find().observeChanges({
-    added: function (frame) {
-      ui.framesToRender.push(frame)
+    added: function (id, frames) {
+      console.log(frames)
+      ui.framesToRender = ui.framesToRender.concat(frames.frames)
     }
   })
-
-  requestAnimationFrame(render)
 }
 
 function render (now) {
   var frame = ui.framesToRender[0]
+  //console.log(frame)
 
   if (!frame || !Characters.findOne({ userId: localStorage.userId })) {
-    console.log('nope')
     requestAnimationFrame(render)
     return
   }
 
   worldContext.clearRect(0, 0, worldCanvas.width, worldCanvas.height)
-  if (frame) frame.bodies.forEach(function (body) {
-    drawBody(body)
-  })
+  if (frame) {
+    frame.bodies.forEach(function (body) {
+      drawBody(body)
+    })
+  }
 
   drawUI(frame)
 
   ui.framesToRender.shift()
-
+  requestAnimationFrame(render)
 }
 
 function translateToCamera (position) {
@@ -143,6 +148,7 @@ function setupCameraControls () {
 
 function drawBody (body) {
   body.shapes.forEach(function (shape, i) {
+    console.log(body.position)
     worldContext.beginPath()
     worldContext.fillStyle = shape.styles && shape.styles.fillStyle ? shape.styles.fillStyle : '#000000'
     worldContext.strokeStyle = shape.styles && shape.styles.strokeStyle ? shape.styles.strokeStyle : '#000000'
@@ -173,6 +179,7 @@ function drawBody (body) {
 }
 
 function drawUI (frame) {
+  if (!getPlayerPosition()) return
   var translatedPlayerPosition = translateToCamera(getPlayerPosition())
   $('.action-buttons').offset({left: translatedPlayerPosition[0], top: uiCanvas.height - translatedPlayerPosition[1]})
 
