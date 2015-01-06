@@ -1,45 +1,55 @@
+var plugins = {}
+
+var ui = {
+  state: null,
+  framesToRender: [],
+  worldCanvas: null,
+  worldContext: null,
+  uiCanvas: null,
+  uiContext: null
+}
+
+var styles = {
+  colours: {
+    sky: '#58A2C4',
+    ground: '#FFFFFF',
+    player1: '#CB461D',
+    player2: '#10326F',
+    ball1: '#AE1E3B',
+    ball2: '#AE1E3B',
+    explosion: '#F1D432',
+    jumpArrow: '#FFFFFF',
+    shotArrow: '#AE1E3B'
+  }
+}
+
 Template.game.rendered = function () {
-
-  var ui = {
-    state: null
-  }
-
-  var characterId = null
-
-  var styles = {
-    colours: {
-      sky: '#58A2C4',
-      ground: '#FFFFFF',
-      player1: '#CB461D',
-      player2: '#10326F',
-      ball1: '#AE1E3B',
-      ball2: '#AE1E3B',
-      explosion: '#F1D432',
-      jumpArrow: '#FFFFFF',
-      shotArrow: '#AE1E3B'
-    }
-  }
-
   Meteor.subscribe('GameState')
   Meteor.subscribe('Characters')
   Meteor.subscribe('Players')
   Meteor.subscribe('Frames')
   Meteor.subscribe('Turns')
+
+  if (!localStorage.userId) localStorage.userId = Meteor.uuid()
+
+  if (Characters.find({ userId: localStorage.userId }).count() === 0) {
+    Meteor.call('addPlayer', localStorage.userId)
+  }
   
   // Setup our canvas for drawing the game world onto
-  var worldCanvas = document.getElementById('world')
+  worldCanvas = document.getElementById('world')
   worldCanvas.width = window.innerWidth
   worldCanvas.height = window.innerHeight
-  var worldContext = worldCanvas.getContext('2d')
+  worldContext = worldCanvas.getContext('2d')
   // Setup a canvas for drawing UI elements onto
-  var uiCanvas = document.getElementById('ui')
+  uiCanvas = document.getElementById('ui')
   uiCanvas.width = window.innerWidth
   uiCanvas.height = window.innerHeight
-  var uiContext = uiCanvas.getContext('2d')
+  uiContext = uiCanvas.getContext('2d')
   // Setup HammerJS, the mouse/touch gesture library we'll use for the controls
-  var hammer = new Hammer(uiCanvas)
+  plugins.hammer = new Hammer(uiCanvas)
   // HammerJS only listens for horizontal drags by default, here we tell it listen for all directions
-  hammer.get('pan').set({ direction: Hammer.DIRECTION_ALL })
+  plugins.hammer.get('pan').set({ direction: Hammer.DIRECTION_ALL })
 
   var camera = {
     zoom: 1,
@@ -79,11 +89,9 @@ Template.game.rendered = function () {
 
   setupCameraControls()
 
-  var framesToRender = []
-
   Frames.find().observeChanges({
     added: function (frame) {
-      framesToRender.push(frame)
+      ui.framesToRender.push(frame)
     }
   })
 
@@ -91,7 +99,13 @@ Template.game.rendered = function () {
 }
 
 function render (now) {
-  var frame = framesToRender[0]
+  var frame = ui.framesToRender[0]
+
+  if (!frame || !Characters.findOne({ userId: localStorage.userId })) {
+    console.log('nope')
+    requestAnimationFrame(render)
+    return
+  }
 
   worldContext.clearRect(0, 0, worldCanvas.width, worldCanvas.height)
   if (frame) frame.bodies.forEach(function (body) {
@@ -100,9 +114,8 @@ function render (now) {
 
   drawUI(frame)
 
-  framesToRender.shift()
+  ui.framesToRender.shift()
 
-  requestAnimationFrame(render)
 }
 
 function translateToCamera (position) {
@@ -118,8 +131,8 @@ function scaleToCamera (position) {
 }
 
 function setupCameraControls () {
-  hammer.off('panstart pan panend')
-  hammer.on('pan', function (event) {
+  plugins.hammer.off('panstart pan panend')
+  plugins.hammer.on('pan', function (event) {
     camera.x += event.velocityX
     camera.y -= event.velocityY
   })
@@ -160,7 +173,7 @@ function drawBody (body) {
 }
 
 function drawUI (frame) {
-  var translatedPlayerPosition = translateToCamera(getPlayerCharacter().position)
+  var translatedPlayerPosition = translateToCamera(getPlayerPosition())
   $('.action-buttons').offset({left: translatedPlayerPosition[0], top: uiCanvas.height - translatedPlayerPosition[1]})
 
   // We draw anything which isn't governed by the physics engine in this function
@@ -206,25 +219,29 @@ function drawUI (frame) {
     uiContext.fillText('Game over!', uiCanvas.width / 2 - (uiContext.measureText('Game over').width / 2), uiCanvas.height / 2 - 20)
   } else {
     var i = 0
-    Characters.find().forEach(function (char) {
+    Characters.find().fetch().forEach(function (char) {
       uiContext.fillStyle = styles.colours[game.characters[i].name]
       uiContext.font = '20px courier'
       var text = char.name + ': ' + char.health
       uiContext.fillText(text, 30, (i + 1) * 40)
       i++
     })
-    drawPlayerMarker(getPlayerBody())
+    drawPlayerMarker(getPlayerPosition())
   }
 }
 
-function getPlayerBody () {
-  Characters.find({ id: characterId })
+function getPlayerPosition () {
+  var bodyId = Characters.findOne({ userId: localStorage.userId }).bodyId
+  var playerBody =  ui.framesToRender[0].bodies.filter(function (body) {
+    if (body.id === bodyId) return body
+  })
+  return playerBody.position
 }
 
-function drawPlayerMarker (player) {
+function drawPlayerMarker (position) {
   // Get the position of the player and draw a lil white triangle above it
   uiContext.beginPath()
-  var translatedPosition = translateToCamera(player.position)
+  var translatedPosition = translateToCamera(position)
   uiContext.moveTo(translatedPosition[0], worldCanvas.height - translatedPosition[1] - 40)
   uiContext.lineTo(translatedPosition[0] - 10, worldCanvas.height - translatedPosition[1] - 60)
   uiContext.lineTo(translatedPosition[0] + 10, worldCanvas.height - translatedPosition[1] - 60)
@@ -235,7 +252,7 @@ function drawPlayerMarker (player) {
 }
 
 function aim (callback) {
-  hammer.off('panstart pan panend')
+  plugins.hammer.off('panstart pan panend')
   // Start listening for the start of a mouse/finger drag
   /*
   * We're calling hammer.on three times here, to listen for three different types of events; 'panstart'
@@ -245,14 +262,14 @@ function aim (callback) {
   * to. Hammer will continue to listen and run these functions until we call hammer.off('pan') for each event 
   * to tell it to stop.
   */
-  hammer.on('panstart', function (event) {
+  plugins.hammer.on('panstart', function (event) {
     // HammerJS tells us where the user started dragging relative to the page, not the canvas - translate here
     // We grab the position at the start of the drag and remember it to draw a nice arrow from
     var center = {
       x: event.center.x - uiCanvas.getBoundingClientRect().left,
       y: event.center.y - uiCanvas.getBoundingClientRect().top
     }
-    hammer.on('pan', function (event) {
+    plugins.hammer.on('pan', function (event) {
       // The distance of the drag is measured in pixels, so we have to standardise it before
       // translating it into the 'power' of our shot. You might want to console.log out event.angle
       // here to see how HammerJS gives us angles.
@@ -265,10 +282,10 @@ function aim (callback) {
     })
   })
   
-  hammer.on('panend', function (event) {
+  plugins.hammer.on('panend', function (event) {
     var power = translateDistanceToPower(event.distance)
     if (power <= 10) return
-    hammer.off('panstart pan panend')
+    plugins.hammer.off('panstart pan panend')
     setupCameraControls()
     // The player has stopped dragging, let loose!
     callback(event.angle, power)

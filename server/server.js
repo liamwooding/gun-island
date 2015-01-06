@@ -3,19 +3,15 @@ var p2 = Meteor.npmRequire('p2')
 Meteor.publish('GameState', function () {
   return GameState.find()
 })
-
 Meteor.publish('Characters', function () {
   return Characters.find()
 })
-
 Meteor.publish('Players', function () {
-  return Players.find({ userId: Meteor.userId })
+  return Players.find()
 })
-
 Meteor.publish('Frames', function () {
   return Frames.find({}, { sort: { tick: 1 } })
 })
-
 Meteor.publish('Turns', function () {
   return Turns.find({}, {sort: { number: 1 }})
 })
@@ -23,6 +19,13 @@ Meteor.publish('Turns', function () {
 var world
 
 Meteor.startup(function () {
+  Characters.remove({})
+  Meteor.methods({
+    addPlayer: function (userId) {
+      makeCharacter(userId)
+    }
+  })
+
   Turns.allow({
     update: function () {
       return true
@@ -78,9 +81,6 @@ Meteor.startup(function () {
   groundBody.addShape(groundShape)
   world.addBody(groundBody)
 
-  makeCharacter('player1', { x: 50, y: 61 })
-  makeCharacter('player2', { x: 400, y: 61 })
-
   var pause = true
   var tick = 0
   var explosions = []
@@ -106,12 +106,12 @@ function tickPhysics () {
   tickPhysics()
 }
 
-function makeCharacter (name, position) {
-  console.log(name, position)
+function makeCharacter (userId) {
+  console.log('New player:', userId)
   // Return an object that describes our new character
   var characterBody = new p2.Body({
     mass: 5,
-    position: [ position.x, position.y ],
+    position: [ Math.random() * 500, 100 ],
     fixedRotation: true
   })
 
@@ -121,16 +121,16 @@ function makeCharacter (name, position) {
   world.addBody(characterBody)
 
   characterData = {
-    name: name,
+    userId: userId,
     health: 100,
-    id: characterBody.id,
+    bodyId: characterBody.id,
     takeDamage: function (damage) {
       this.health = Math.round(this.health - damage)
       if (this.health <= 0) this.die()
     },
     die: function () {
-      console.log('game over man')
-      game.state = 'gameover'
+      console.log('game over man', this.userId)
+      //game.state = 'gameover'
     }
   }
 
