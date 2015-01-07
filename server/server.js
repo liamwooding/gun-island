@@ -179,7 +179,7 @@ function jump (bodyId, angle, power) {
   var radians = angle * Math.PI / 180
   var stepX = (power * Math.cos(radians))
   var stepY = (power * Math.sin(radians))
-  player.velocity = [player.velocity[0] +stepX, player.velocity[1] - stepY]
+  player.velocity = [player.velocity[0] + stepX, player.velocity[1] - stepY]
   console.log(player.velocity)
 }
 
@@ -187,8 +187,8 @@ function shoot (bodyId, angle, power) {
   var player = world.getBodyById(bodyId)
   // We use the angle to work out how many pixels we should move the projectile each frame
   var radians = angle * Math.PI / 180
-  var stepX = (power * Math.cos(radians)) * 1.5
-  var stepY = (power * Math.sin(radians)) * 1.5
+  var stepX = (power * Math.cos(radians))
+  var stepY = (power * Math.sin(radians))
   var startX = Math.cos(radians) * 20
   var startY = Math.sin(radians) * 20
   var projectileBody = new p2.Body({
@@ -200,7 +200,8 @@ function shoot (bodyId, angle, power) {
   projectileBody.addShape(projectileShape)
 
   world.addBody(projectileBody)
-  projectileBody.velocity = [stepX, -stepY]
+  projectileBody.velocity = [stepX * 1.5, -stepY * 1.5]
+  player.velocity = [player.velocity[0] - (stepX * 0.5), player.velocity[1] + (stepY * 0.5)]
   projectileBody.gameData = {
     bounced: 0
   }
@@ -211,7 +212,7 @@ function shoot (bodyId, angle, power) {
     if (impact.bodyB.id === projectileBody.id) impactedProjectile = impact.bodyB
     
     if (impactedProjectile) {
-      if (game.characters.some(function (char) { char.id === impact.bodyA.id || char.id === impact.bodyB.id })) {
+      if (Characters.find().fetch().some(function (char) { char.bodyId === impact.bodyA.id || char.bodyId === impact.bodyB.id })) {
         projectile.gameData.bounced++
         impactProjectile(impactedProjectile, 100, 0.5, world)
       } else {
