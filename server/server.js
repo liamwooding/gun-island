@@ -177,8 +177,8 @@ function jump (bodyId, angle, power) {
   var player = world.getBodyById(bodyId)
   player.wakeUp()
   var radians = angle * Math.PI / 180
-  var stepX = (power * Math.cos(radians))
-  var stepY = (power * Math.sin(radians))
+  var stepX = (power * Math.cos(radians)) * 1.5
+  var stepY = (power * Math.sin(radians)) * 1.5
   player.velocity = [player.velocity[0] + stepX, player.velocity[1] - stepY]
   console.log(player.velocity)
 }
@@ -192,7 +192,7 @@ function shoot (bodyId, angle, power) {
   var startX = Math.cos(radians) * 20
   var startY = Math.sin(radians) * 20
   var projectileBody = new p2.Body({
-    mass: 3,
+    mass: 1,
     position: [player.position[0] +startX, player.position[1] - startY]
   })
   var projectileShape = new p2.Circle(5)
@@ -200,38 +200,34 @@ function shoot (bodyId, angle, power) {
   projectileBody.addShape(projectileShape)
 
   world.addBody(projectileBody)
-  projectileBody.velocity = [stepX * 1.5, -stepY * 1.5]
-  player.velocity = [player.velocity[0] - (stepX * 0.5), player.velocity[1] + (stepY * 0.5)]
+  projectileBody.velocity = [stepX * 6, -stepY * 6]
+  player.velocity = [player.velocity[0] - (stepX * 0.6), player.velocity[1] + (stepY * 0.6)]
   projectileBody.gameData = {
     bounced: 0
   }
 
   world.on('impact', function (impact) {
+    console.log(impact)
     var impactedProjectile
     if (impact.bodyA.id === projectileBody.id) impactedProjectile = impact.bodyA
     if (impact.bodyB.id === projectileBody.id) impactedProjectile = impact.bodyB
     
     if (impactedProjectile) {
-      if (Characters.find().fetch().some(function (char) { char.bodyId === impact.bodyA.id || char.bodyId === impact.bodyB.id })) {
-        projectile.gameData.bounced++
-        impactProjectile(impactedProjectile, 100, 0.5, world)
-      } else {
-        impactProjectile(impactedProjectile, 100, 0.5, world)
-      }
+      impactProjectile(impactedProjectile, 100, 0.5, world)
     }
   })
 }
 
 function impactProjectile (projectile, explosionSize, damageFactor, world) {
-  // setTimeout(function () {
+  // Meteor.setTimeout(function () {
   //   projectile.gameData.bounced++
-  // }, 25)
+  // }, 100)
 
-  // game.explosions.push({
-  //   position: projectile.position,
-  //   maxSize: explosionSize,
-  //   size: 1
-  // })
+  // // game.explosions.push({
+  // //   position: projectile.position,
+  // //   maxSize: explosionSize,
+  // //   size: 1
+  // // })
 
   // game.characters.forEach(function (char) {
   //   var charBody = world.getBodyById(char.id)

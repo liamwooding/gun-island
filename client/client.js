@@ -328,8 +328,8 @@ function shoot (angle, power) {
 function translateDistanceToPower (distance) {
   // Divide the height of the canvas by the distance of our drag - we'll set a 'power limit' of 50% screen height
   var power = distance / ui.worldCanvas.height
-  if (power > 0.5) power = 0.5
+  if (power > 0.25) power = 0.25
   // The maths are easier if our 'max power' is 100
-  power = power * 200
+  power = power * 400
   return power
 }
