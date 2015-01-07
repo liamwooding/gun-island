@@ -95,7 +95,6 @@ Template.game.rendered = function () {
 
   Frames.find().observeChanges({
     added: function (id, frames) {
-      console.log(frames)
       ui.framesToRender = ui.framesToRender.concat(frames.frames)
     }
   })
@@ -103,7 +102,6 @@ Template.game.rendered = function () {
 
 function render (now) {
   var frame = ui.framesToRender[0]
-  //console.log(frame)
 
   if (!frame || !Characters.findOne({ userId: localStorage.userId })) {
     requestAnimationFrame(render)
@@ -119,7 +117,7 @@ function render (now) {
 
   drawUI(frame)
 
-  ui.framesToRender.shift()
+  if (ui.framesToRender.length > 1) ui.framesToRender.shift()
   requestAnimationFrame(render)
 }
 
@@ -138,17 +136,19 @@ function scaleToCamera (position) {
 function setupCameraControls () {
   plugins.hammer.off('panstart pan panend')
   plugins.hammer.on('pan', function (event) {
-    camera.x += event.velocityX
-    camera.y -= event.velocityY
+    camera.x += event.velocityX * (15 / camera.zoom)
+    camera.y -= event.velocityY * (15 / camera.zoom)
   })
   $(document).on('mousewheel', function(event) {
     camera.zoom += event.deltaY / 20
+    if (camera.zoom > 10) camera.zoom = 10
+    if (camera.zoom < 1) camera.zoom = 1
+    console.log(camera.zoom)
   })
 }
 
 function drawBody (body) {
   body.shapes.forEach(function (shape, i) {
-    console.log(body.position)
     worldContext.beginPath()
     worldContext.fillStyle = shape.styles && shape.styles.fillStyle ? shape.styles.fillStyle : '#000000'
     worldContext.strokeStyle = shape.styles && shape.styles.strokeStyle ? shape.styles.strokeStyle : '#000000'
