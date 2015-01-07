@@ -6,14 +6,11 @@ Meteor.publish('GameState', function () {
 Meteor.publish('Characters', function () {
   return Characters.find()
 })
-Meteor.publish('Players', function () {
-  return Players.find()
-})
-Meteor.publish('Frames', function () {
-  return Frames.find()
-})
 Meteor.publish('Turns', function () {
-  return Turns.find({}, {sort: { number: 1 }})
+  return Turns.find({}, {
+    sort: { number: -1 },
+    limit: 1
+  })
 })
 
 var world
@@ -22,17 +19,36 @@ var tick = 0
 var explosions = []
 var framesToPush = []
 
+// Set up our materials
+var projectileMaterial = new p2.Material()
+var terrainMaterial = new p2.Material()
+var characterMaterial = new p2.Material()
+
+var projectileTerrainContactMaterial = new p2.ContactMaterial(projectileMaterial, terrainMaterial, {
+  restitution: 0.7
+})
+
 Meteor.startup(function () {
   console.log('starting')
   Characters.remove({})
-  Frames.remove({})
-  Players.remove({})
   GameState.remove({})
   Turns.remove({})
 
   Meteor.methods({
     addPlayer: function (userId) {
       makeCharacter(userId)
+    },
+    declareAction: function (userId, action) {
+      Characters.update({ userId: userId }, {
+        $set: {
+          lastTurn: {
+            number: Turns.find().count(),
+            action: action.action,
+            angle: action.angle,
+            power: action.power
+          }
+        }
+      })
     }
   })
 
@@ -42,22 +58,12 @@ Meteor.startup(function () {
     }
   })
 
-  Players.allow({
-    insert: function (userId, doc) {
-      return doc.userId === userId
-    },
-    update: function (userId, doc) {
-      return doc.userId === userId
-    }
-  })
-
   GameState.insert({
     characters: [],
     currentTurn: {
       state: null,
       actionsRemaining: 0
     },
-    explosions: [],
     aimArrow: null,
     activeBodies: []
   })
@@ -65,16 +71,7 @@ Meteor.startup(function () {
 
   // We'll start with a world
   world = new p2.World()
-  world.sleepMode = p2.World.BODY_SLEEPING
-
-  // Set up our materials
-  var projectileMaterial = new p2.Material()
-  var terrainMaterial = new p2.Material()
-  var characterMaterial = new p2.Material()
-
-  var projectileTerrainContactMaterial = new p2.ContactMaterial(projectileMaterial, terrainMaterial, {
-    restitution: 0.7
-  })
+  //world.sleepMode = p2.World.BODY_SLEEPING
 
   world.addContactMaterial(projectileTerrainContactMaterial)
 
@@ -95,8 +92,19 @@ Meteor.startup(function () {
   tickPhysics()
 })
 
-function tickPhysics () {
-  if (pause === true) return console.log('nope')
+function tickPhysics (newTurn) {
+  if (newTurn === true) {
+    var turnNumber = Turns.find().count()
+    Characters.find().forEach(function (character) {
+      if (character.lastTurn && character.lastTurn.number === turnNumber) {
+        if (character.lastTurn.action === 'jump') {
+          jump(character.bodyId, character.lastTurn.angle, character.lastTurn.power)
+        } else if (character.lastTurn.action === 'shoot') {
+          shoot(character.bodyId, character.lastTurn.angle, character.lastTurn.power)
+        }
+      }
+    })
+  }
   if (Characters.find().count() === 0) {
     Meteor.setTimeout(function () {
       tickPhysics()
@@ -119,14 +127,19 @@ function tickPhysics () {
     tick: tick
   })
   framesToPush.push(frame)
-  if (framesToPush.length >= 60) {
-    Frames.insert({
-      frames: framesToPush
+  if (framesToPush.length >= 180) {
+    Turns.insert({
+      frames: framesToPush,
+      number: Turns.find().count() + 1
     })
     pause = true
     framesToPush = []
+    Meteor.setTimeout(function () {
+      pause = false
+      tickPhysics(true)
+    }, 10000)
   }
-  tickPhysics()
+  if (!pause) tickPhysics()
 }
 
 function makeCharacter (userId) {
@@ -160,8 +173,83 @@ function makeCharacter (userId) {
   Characters.insert(characterData)
 }
 
-function nextTurn () {
-  Turns.insert({
-    number: Turns.count() + 1
+function jump (bodyId, angle, power) {
+  var player = world.getBodyById(bodyId)
+  player.wakeUp()
+  var radians = angle * Math.PI / 180
+  var stepX = (power * Math.cos(radians))
+  var stepY = (power * Math.sin(radians))
+  player.velocity = [player.velocity[0] +stepX, player.velocity[1] - stepY]
+  console.log(player.velocity)
+}
+
+function shoot (bodyId, angle, power) {
+  var player = world.getBodyById(bodyId)
+  // We use the angle to work out how many pixels we should move the projectile each frame
+  var radians = angle * Math.PI / 180
+  var stepX = (power * Math.cos(radians)) * 1.5
+  var stepY = (power * Math.sin(radians)) * 1.5
+  var startX = Math.cos(radians) * 20
+  var startY = Math.sin(radians) * 20
+  var projectileBody = new p2.Body({
+    mass: 3,
+    position: [player.position[0] +startX, player.position[1] - startY]
   })
+  var projectileShape = new p2.Circle(5)
+  projectileShape.material = projectileMaterial
+  projectileBody.addShape(projectileShape)
+
+  world.addBody(projectileBody)
+  projectileBody.velocity = [stepX, -stepY]
+  projectileBody.gameData = {
+    bounced: 0
+  }
+
+  world.on('impact', function (impact) {
+    var impactedProjectile
+    if (impact.bodyA.id === projectileBody.id) impactedProjectile = impact.bodyA
+    if (impact.bodyB.id === projectileBody.id) impactedProjectile = impact.bodyB
+    
+    if (impactedProjectile) {
+      if (game.characters.some(function (char) { char.id === impact.bodyA.id || char.id === impact.bodyB.id })) {
+        projectile.gameData.bounced++
+        impactProjectile(impactedProjectile, 100, 0.5, world)
+      } else {
+        impactProjectile(impactedProjectile, 100, 0.5, world)
+      }
+    }
+  })
+}
+
+function impactProjectile (projectile, explosionSize, damageFactor, world) {
+  // setTimeout(function () {
+  //   projectile.gameData.bounced++
+  // }, 25)
+
+  // game.explosions.push({
+  //   position: projectile.position,
+  //   maxSize: explosionSize,
+  //   size: 1
+  // })
+
+  // game.characters.forEach(function (char) {
+  //   var charBody = world.getBodyById(char.id)
+  //   var relativePosition = [
+  //     charBody.position[0] - projectile.position[0],
+  //     charBody.position[1] - projectile.position[1]
+  //   ]
+  //   var distance = Math.sqrt(Math.pow((relativePosition[0]), 2) + Math.pow((relativePosition[1]), 2))
+  //   var radians = Math.atan2(relativePosition[1], relativePosition[0])
+
+  //   if (distance < explosionSize) {
+  //     char.takeDamage((explosionSize - distance) * damageFactor)
+  //     var stepX = (explosionSize * Math.cos(radians)) / (Math.sqrt(distance))
+  //     var stepY = (explosionSize * Math.sin(radians)) / (Math.sqrt(distance))
+  //     console.log(charBody.velocity)
+  //     charBody.velocity = [ charBody.velocity[0] + stepX, charBody.velocity[1] + stepY ]
+  //     console.log(charBody.velocity)
+  //   }
+  // })
+
+  world.removeBody(projectile)
 }

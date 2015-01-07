@@ -3,6 +3,7 @@ var plugins = {}
 var ui = {
   state: null,
   framesToRender: [],
+  aimArrow: {},
   worldCanvas: null,
   worldContext: null,
   uiCanvas: null,
@@ -42,8 +43,6 @@ Template.game.rendered = function () {
       }
     }
   })
-  Meteor.subscribe('Players')
-  Meteor.subscribe('Frames')
   Meteor.subscribe('Turns')
   
   // Setup our canvas for drawing the game world onto
@@ -52,12 +51,12 @@ Template.game.rendered = function () {
   ui.worldCanvas.height = window.innerHeight
   ui.worldContext = ui.worldCanvas.getContext('2d')
   // Setup a canvas for drawing UI elements onto
-  ui.uiCanvas = document.getElementById('ui')
+  ui.uiCanvas = document.getElementById('uiCanvas')
   ui.uiCanvas.width = window.innerWidth
   ui.uiCanvas.height = window.innerHeight
   ui.uiContext = ui.uiCanvas.getContext('2d')
   // Setup HammerJS, the mouse/touch gesture library we'll use for the controls
-  plugins.hammer = new Hammer(ui.uiCanvas)
+  plugins.hammer = new Hammer(document.getElementById('ui'))
   // HammerJS only listens for horizontal drags by default, here we tell it listen for all directions
   plugins.hammer.get('pan').set({ direction: Hammer.DIRECTION_ALL })
 
@@ -73,32 +72,27 @@ Template.game.rendered = function () {
   }, true)
 
   // Set up our click listeners for the action buttons (using jquery, for readability's sake)
-  $('div.buttons').on('click', 'button.jump:not(.active)', function () {
-    $('div.buttons button').removeClass('active')
+  $('.action-buttons').on('mousedown', 'button.jump', function () {
     $(this).addClass('active')
     ui.state = 'aiming-jump'
     aim(function (angle, power) {
       jump(angle, power)
     })
   })
-  $('div.buttons').on('click', 'button.shoot:not(.active)', function () {
-    $('div.buttons button').removeClass('active')
+  $('.action-buttons').on('mousedown', 'button.shoot', function () {
     $(this).addClass('active')
     ui.state = 'aiming-shot'
     aim(function (angle, power) {
-      fireProjectile(angle, power)
+      shoot(angle, power)
     })
-  })
-  $('div.buttons').on('click', 'button.active', function () {
-    $(this).removeClass('active')
-    setupCameraControls()
   })
 
   setupCameraControls()
 
-  Frames.find().observeChanges({
-    added: function (id, frames) {
-      ui.framesToRender = ui.framesToRender.concat(frames.frames)
+  Turns.find().observeChanges({
+    added: function (id, turn) {
+      ui.state = 'rendering'
+      ui.framesToRender = ui.framesToRender.concat(turn.frames)
     }
   })
 }
@@ -147,7 +141,7 @@ function setupCameraControls () {
     camera.y -= event.velocityY * (15 / camera.zoom)
   })
   $(document).on('mousewheel', function(event) {
-    camera.zoom += event.deltaY / 20
+    camera.zoom += event.deltaY / 60
     if (camera.zoom > 10) {
       camera.zoom = 10
       return
@@ -218,8 +212,8 @@ function drawUI (frame) {
   if (ui.aimArrow && ui.aimArrow.power > 10) {
     // Do some maths I copied from the internet
     var radians = ui.aimArrow.angle * Math.PI / 180
-    var arrowToX = ui.aimArrow.start.x - (ui.aimArrow.power * Math.cos(radians) * 2)
-    var arrowToY = ui.aimArrow.start.y - (ui.aimArrow.power * Math.sin(radians) * 2)
+    var arrowToX = ui.aimArrow.start.x + (ui.aimArrow.power * Math.cos(radians) * 2)
+    var arrowToY = ui.aimArrow.start.y + (ui.aimArrow.power * Math.sin(radians) * 2)
     // Draw the line
     ui.uiContext.moveTo(ui.aimArrow.start.x, ui.aimArrow.start.y)
     ui.uiContext.lineTo(arrowToX, arrowToY)
@@ -228,7 +222,7 @@ function drawUI (frame) {
     ui.uiContext.lineWidth = 2
     ui.uiContext.stroke()
     ui.uiContext.beginPath()
-    ui.uiContext.arc(ui.aimArrow.start.x, ui.aimArrow.start.y, 200, radians - 0.02 + Math.PI, radians + 0.02 + Math.PI)
+    ui.uiContext.arc(ui.aimArrow.start.x, ui.aimArrow.start.y, 200, radians - 0.02, radians + 0.02)
     ui.uiContext.stroke()
   }
 
@@ -311,66 +305,23 @@ function aim (callback) {
 
 function jump (angle, power) {
   $('.action-buttons').hide()
-  ui.state = 'jumping'
-  var radians = angle * Math.PI / 180
-  var stepX = (power * Math.cos(radians))
-  var stepY = (power * Math.sin(radians))
-  var velocity = [-stepX, stepY]
+  $('.action-buttons .active').removeClass('active')
 
-  var playerId = Characters.findOne({ userId: localStorage.userId })._id
-  Characters.update(playerId, {
-    $set: {
-      lastTurn: {
-        number: Turns.find().count(),
-        action: 'jump',
-        velocity: velocity
-      }
-    }
+  Meteor.call('declareAction', localStorage.userId, {
+    action: 'jump',
+    angle: angle,
+    power: power
   })
 }
 
-function fireProjectile (angle, power) {
+function shoot (angle, power) {
   $('.action-buttons').hide()
-  var player = world.getBodyById(game.characters[0].id)
-  game.currentTurn.actionsRemaining--
-  game.currentTurn.state = 'firing'
-  game.characters.forEach(function (char) { char.treatment = 'static' })
-  // We use the angle to work out how many pixels we should move the projectile each frame
-  var radians = angle * Math.PI / 180
-  var stepX = (power * Math.cos(radians)) * 1.5
-  var stepY = (power * Math.sin(radians)) * 1.5
-  var startX = Math.cos(radians) * 20
-  var startY = Math.sin(radians) * 20
-  console.log(startX, startY)
-  var projectileBody = new p2.Body({
-    mass: 3,
-    position: [player.position[0] + -startX, player.position[1] + startY]
-  })
-  var projectileShape = new p2.Circle(5)
-  projectileShape.material = projectileMaterial
-  projectileBody.addShape(projectileShape)
+  $('.action-buttons .active').removeClass('active')
 
-  world.addBody(projectileBody)
-  projectileBody.velocity = [-stepX, stepY]
-  projectileBody.gameData = {
-    bounced: 0
-  }
-
-  game.activeBodies.push(projectileBody.id)
-
-  world.on('impact', function (impact) {
-    var impactedProjectile
-    if (impact.bodyA.id === projectileBody.id) impactedProjectile = impact.bodyA
-    if (impact.bodyB.id === projectileBody.id) impactedProjectile = impact.bodyB
-    
-    if (impactedProjectile) {
-      if (game.characters.some(function (char) { char.id === impact.bodyA.id || char.id === impact.bodyB.id })) {
-        projectile.gameData.bounced++
-        impactProjectile(impactedProjectile, 100, 0.5, world)
-      } else {
-        impactProjectile(impactedProjectile, 100, 0.5, world)
-      }
-    }
+  Meteor.call('declareAction', localStorage.userId, {
+    action: 'shoot',
+    angle: angle,
+    power: power
   })
 }
 
@@ -381,42 +332,4 @@ function translateDistanceToPower (distance) {
   // The maths are easier if our 'max power' is 100
   power = power * 200
   return power
-}
-
-function impactProjectile (projectile, explosionSize, damageFactor, world) {
-  setTimeout(function () {
-    projectile.gameData.bounced++
-  }, 25)
-
-  game.explosions.push({
-    position: projectile.position,
-    maxSize: explosionSize,
-    size: 1
-  })
-
-  game.characters.forEach(function (char) {
-    var charBody = world.getBodyById(char.id)
-    var relativePosition = [
-      charBody.position[0] - projectile.position[0],
-      charBody.position[1] - projectile.position[1]
-    ]
-    var distance = Math.sqrt(Math.pow((relativePosition[0]), 2) + Math.pow((relativePosition[1]), 2))
-    var radians = Math.atan2(relativePosition[1], relativePosition[0])
-
-    if (distance < explosionSize) {
-      char.takeDamage((explosionSize - distance) * damageFactor)
-      var stepX = (explosionSize * Math.cos(radians)) / (Math.sqrt(distance))
-      var stepY = (explosionSize * Math.sin(radians)) / (Math.sqrt(distance))
-      console.log(charBody.velocity)
-      charBody.velocity = [ charBody.velocity[0] + stepX, charBody.velocity[1] + stepY ]
-      console.log(charBody.velocity)
-    }
-  })
-
-  world.removeBody(projectile)
-  game.activeBodies.forEach(function (bodyId, i) {
-    if (bodyId == projectile.id) game.activeBodies.splice(i, 1)
-  })
-  game.currentTurn.actionsRemaining--
-  nextTurn()
 }

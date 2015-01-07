@@ -27,7 +27,7 @@ canvas#world {
   width: 100%;
   height: 100%;
 }
-canvas#ui {
+canvas#uiCanvas {
   z-index: 2;
   background-color: transparent;
   position: absolute;
@@ -37,12 +37,6 @@ canvas#ui {
   right: 0;
   width: 100%;
   height: 100%;
-}
-.buttons {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
 }
 .messages {
   position: absolute;

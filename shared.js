@@ -1,7 +1,5 @@
 GameState = new Mongo.Collection('GameState')
 Characters = new Mongo.Collection('Characters')
-Players = new Mongo.Collection('Players')
-Frames = new Mongo.Collection('Frames')
 Turns = new Mongo.Collection('Turns')
 
 // function genTerrain (floor, height, world) {
