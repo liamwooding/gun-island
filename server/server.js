@@ -113,14 +113,12 @@ function tickPhysics () {
       shapeOffsets: body.shapeOffsets
     }
   })
-  var frame = {
+  var frame = EJSON.clone({
     bodies: bodies,
     explosions: explosions,
     tick: tick
-  }
-  console.log(frame.bodies[1].position[1])
-  var clonedFrame = EJSON.clone(frame)
-  framesToPush.push(clonedFrame)
+  })
+  framesToPush.push(frame)
   if (framesToPush.length >= 300) {
     Frames.insert({
       frames: framesToPush
