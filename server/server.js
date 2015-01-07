@@ -36,8 +36,8 @@ Meteor.startup(function () {
     }
   })
 
-  Turns.allow({
-    update: function () {
+  Characters.allow({
+    update: function (userId, doc) {
       return true
     }
   })
@@ -119,7 +119,7 @@ function tickPhysics () {
     tick: tick
   })
   framesToPush.push(frame)
-  if (framesToPush.length >= 300) {
+  if (framesToPush.length >= 60) {
     Frames.insert({
       frames: framesToPush
     })

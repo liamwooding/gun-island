@@ -1,8 +1,8 @@
-GameState = new Meteor.Collection('GameState')
-Characters = new Meteor.Collection('Characters')
-Players = new Meteor.Collection('Players')
-Frames = new Meteor.Collection('Frames')
-Turns = new Meteor.Collection('Turns')
+GameState = new Mongo.Collection('GameState')
+Characters = new Mongo.Collection('Characters')
+Players = new Mongo.Collection('Players')
+Frames = new Mongo.Collection('Frames')
+Turns = new Mongo.Collection('Turns')
 
 // function genTerrain (floor, height, world) {
 //   var renderer = world.renderer()

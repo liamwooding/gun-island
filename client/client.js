@@ -47,26 +47,29 @@ Template.game.rendered = function () {
   Meteor.subscribe('Turns')
   
   // Setup our canvas for drawing the game world onto
-  worldCanvas = document.getElementById('world')
-  worldCanvas.width = window.innerWidth
-  worldCanvas.height = window.innerHeight
-  worldContext = worldCanvas.getContext('2d')
+  ui.worldCanvas = document.getElementById('world')
+  ui.worldCanvas.width = window.innerWidth
+  ui.worldCanvas.height = window.innerHeight
+  ui.worldContext = ui.worldCanvas.getContext('2d')
   // Setup a canvas for drawing UI elements onto
-  uiCanvas = document.getElementById('ui')
-  uiCanvas.width = window.innerWidth
-  uiCanvas.height = window.innerHeight
-  uiContext = uiCanvas.getContext('2d')
+  ui.uiCanvas = document.getElementById('ui')
+  ui.uiCanvas.width = window.innerWidth
+  ui.uiCanvas.height = window.innerHeight
+  ui.uiContext = ui.uiCanvas.getContext('2d')
   // Setup HammerJS, the mouse/touch gesture library we'll use for the controls
-  plugins.hammer = new Hammer(uiCanvas)
+  plugins.hammer = new Hammer(ui.uiCanvas)
   // HammerJS only listens for horizontal drags by default, here we tell it listen for all directions
   plugins.hammer.get('pan').set({ direction: Hammer.DIRECTION_ALL })
 
+  //camera.x = 0 - (ui.worldCanvas.width / 2)
+  //camera.y = 0 - (ui.worldCanvas.height / 2)
+
   // resize canvas when the browser is resized
   window.addEventListener('resize', function () {
-    worldCanvas.width = window.innerWidth
-    worldCanvas.height = window.innerHeight
-    uiCanvas.width = window.innerWidth
-    uiCanvas.height = window.innerHeight
+    ui.worldCanvas.width = window.innerWidth
+    ui.worldCanvas.height = window.innerHeight
+    ui.uiCanvas.width = window.innerWidth
+    ui.uiCanvas.height = window.innerHeight
   }, true)
 
   // Set up our click listeners for the action buttons (using jquery, for readability's sake)
@@ -108,7 +111,7 @@ function render (now) {
     return
   }
 
-  worldContext.clearRect(0, 0, worldCanvas.width, worldCanvas.height)
+  ui.worldContext.clearRect(0, 0, ui.worldCanvas.width, ui.worldCanvas.height)
   if (frame) {
     frame.bodies.forEach(function (body) {
       drawBody(body)
@@ -117,13 +120,17 @@ function render (now) {
 
   drawUI(frame)
 
-  if (ui.framesToRender.length > 1) ui.framesToRender.shift()
+  if (ui.state !== 'action' && ui.framesToRender.length > 1) {
+    ui.framesToRender.shift()
+  } else {
+    ui.state = 'action'
+  }
   requestAnimationFrame(render)
 }
 
 function translateToCamera (position) {
-  var x = (position[0] - camera.x) * camera.zoom
-  var y = (position[1] - camera.y) * camera.zoom
+  var x = ((position[0] - camera.x) * camera.zoom)
+  var y = ((position[1] - camera.y) * camera.zoom)
   return [x, y]
 }
 
@@ -141,62 +148,70 @@ function setupCameraControls () {
   })
   $(document).on('mousewheel', function(event) {
     camera.zoom += event.deltaY / 20
-    if (camera.zoom > 10) camera.zoom = 10
-    if (camera.zoom < 1) camera.zoom = 1
-    console.log(camera.zoom)
+    if (camera.zoom > 10) {
+      camera.zoom = 10
+      return
+    }
+    if (camera.zoom < 1) {
+      camera.zoom = 1
+      return
+    }
   })
 }
 
 function drawBody (body) {
   body.shapes.forEach(function (shape, i) {
-    worldContext.beginPath()
-    worldContext.fillStyle = shape.styles && shape.styles.fillStyle ? shape.styles.fillStyle : '#000000'
-    worldContext.strokeStyle = shape.styles && shape.styles.strokeStyle ? shape.styles.strokeStyle : '#000000'
-    worldContext.lineWidth = shape.styles && shape.styles.lineWidth ? shape.styles.lineWidth : 2
+    ui.worldContext.beginPath()
+    ui.worldContext.fillStyle = shape.styles && shape.styles.fillStyle ? shape.styles.fillStyle : '#000000'
+    ui.worldContext.strokeStyle = shape.styles && shape.styles.strokeStyle ? shape.styles.strokeStyle : '#000000'
+    ui.worldContext.lineWidth = shape.styles && shape.styles.lineWidth ? shape.styles.lineWidth : 2
     
     if (shape.type === p2.Shape.PLANE) {
-      worldContext.moveTo(0, translateToCamera(body.position)[1])
-      worldContext.lineTo(worldCanvas.width, translateToCamera(body.position)[1])
+      ui.worldContext.moveTo(0, translateToCamera(body.position)[1])
+      ui.worldContext.lineTo(ui.worldCanvas.width, translateToCamera(body.position)[1])
     } else if (shape.type === p2.Shape.CIRCLE) {
       var shapePosition = [body.position[0] +  body.shapeOffsets[i][0], body.position[1] +  body.shapeOffsets[i][1]]
       shapePosition = translateToCamera(shapePosition)
-      worldContext.arc(shapePosition[0], shapePosition[1], shape.radius, 0, 2 * Math.PI)
+      ui.worldContext.arc(shapePosition[0], shapePosition[1], shape.radius, 0, 2 * Math.PI)
     } else {
       var shapePosition = [body.position[0] +  body.shapeOffsets[i][0], body.position[1] +  body.shapeOffsets[i][1]]
       shapePosition = translateToCamera(shapePosition)
       var vertices = shape.vertices.map(function (vertex) {
         return scaleToCamera(vertex)
       })
-      worldContext.moveTo(shapePosition[0] + vertices[0][0], shapePosition[1] + vertices[0][1])
+      ui.worldContext.moveTo(shapePosition[0] + vertices[0][0], shapePosition[1] + vertices[0][1])
       vertices.slice(1, vertices.length).forEach(function (vertex) {
-        worldContext.lineTo(shapePosition[0] + vertex[0], shapePosition[1] + vertex[1])
+        ui.worldContext.lineTo(shapePosition[0] + vertex[0], shapePosition[1] + vertex[1])
       })
     }
-    worldContext.closePath()
-    worldContext.fill()
-    worldContext.stroke()
+    ui.worldContext.closePath()
+    ui.worldContext.fill()
+    ui.worldContext.stroke()
   })
 }
 
 function drawUI (frame) {
   if (!getPlayerPosition()) return
   var translatedPlayerPosition = translateToCamera(getPlayerPosition())
-  $('.action-buttons').offset({left: translatedPlayerPosition[0], top: uiCanvas.height - translatedPlayerPosition[1]})
+  if (ui.state === 'action') {
+    $('.action-buttons').show()
+    $('.action-buttons').offset({left: translatedPlayerPosition[0], top: ui.uiCanvas.height - translatedPlayerPosition[1]})
+  } else $('.action-buttons').hide()
 
   // We draw anything which isn't governed by the physics engine in this function
-  uiContext.clearRect(0, 0, uiCanvas.width, uiCanvas.height)
+  ui.uiContext.clearRect(0, 0, ui.uiCanvas.width, ui.uiCanvas.height)
 
   // Draw any ongoing explosions
   frame.explosions.forEach(function (explosion, i) {
     if (explosion.size >= explosion.maxSize) game.explosions.splice(i, 1)
-    uiContext.beginPath()
+    ui.uiContext.beginPath()
     var translatedPosition = translateToCamera(explosion.position)
-    uiContext.arc(translatedPosition[0], uiCanvas.height - translatedPosition[1], explosion.size, 0, Math.PI * 2, false)
-    uiContext.lineWidth = explosion.size * 0.1
-    uiContext.strokeStyle = styles.colours.ball1
-    uiContext.fillStyle = styles.colours.explosion
-    uiContext.stroke()
-    uiContext.fill()
+    ui.uiContext.arc(translatedPosition[0], ui.uiCanvas.height - translatedPosition[1], explosion.size, 0, Math.PI * 2, false)
+    ui.uiContext.lineWidth = explosion.size * 0.1
+    ui.uiContext.strokeStyle = styles.colours.ball1
+    ui.uiContext.fillStyle = styles.colours.explosion
+    ui.uiContext.stroke()
+    ui.uiContext.fill()
     explosion.size += explosion.size * 0.4
   })
 
@@ -206,56 +221,49 @@ function drawUI (frame) {
     var arrowToX = ui.aimArrow.start.x - (ui.aimArrow.power * Math.cos(radians) * 2)
     var arrowToY = ui.aimArrow.start.y - (ui.aimArrow.power * Math.sin(radians) * 2)
     // Draw the line
-    uiContext.moveTo(ui.aimArrow.start.x, ui.aimArrow.start.y)
-    uiContext.lineTo(arrowToX, arrowToY)
-    if (ui.currentTurn.state == 'aiming-jump') uiContext.strokeStyle = styles.colours.jumpArrow
-    if (ui.currentTurn.state == 'aiming-shot') uiContext.strokeStyle = styles.colours.shotArrow
-    uiContext.lineWidth = 2
-    uiContext.stroke()
-    uiContext.beginPath()
-    uiContext.arc(ui.aimArrow.start.x, ui.aimArrow.start.y, 200, radians - 0.02 + Math.PI, radians + 0.02 + Math.PI)
-    uiContext.stroke()
+    ui.uiContext.moveTo(ui.aimArrow.start.x, ui.aimArrow.start.y)
+    ui.uiContext.lineTo(arrowToX, arrowToY)
+    if (ui.state == 'aiming-jump') ui.uiContext.strokeStyle = styles.colours.jumpArrow
+    if (ui.state == 'aiming-shot') ui.uiContext.strokeStyle = styles.colours.shotArrow
+    ui.uiContext.lineWidth = 2
+    ui.uiContext.stroke()
+    ui.uiContext.beginPath()
+    ui.uiContext.arc(ui.aimArrow.start.x, ui.aimArrow.start.y, 200, radians - 0.02 + Math.PI, radians + 0.02 + Math.PI)
+    ui.uiContext.stroke()
   }
 
-  uiContext.fillStyle = 'white'
-  var messageText = messages[game.currentTurn.state]
-  if (messageText && ui.state != 'gameover') uiContext.fillText(messageText, uiCanvas.width - 30 - (uiContext.measureText(messageText).width), 40)
+  ui.uiContext.fillStyle = 'white'
+  
+  var i = 0
+  Characters.find().fetch().forEach(function (char) {
+    ui.uiContext.font = '20px courier'
+    var text = char.id + ': ' + char.health
+    ui.uiContext.fillText(text, 30, (i + 1) * 40)
+    i++
+  })
+  drawPlayerMarker(getPlayerPosition())
 
-  if (ui.state == 'gameover') {
-    uiContext.fillStyle = 'white'
-    uiContext.fillText('Game over!', uiCanvas.width / 2 - (uiContext.measureText('Game over').width / 2), uiCanvas.height / 2 - 20)
-  } else {
-    var i = 0
-    Characters.find().fetch().forEach(function (char) {
-      uiContext.fillStyle = styles.colours[game.characters[i].name]
-      uiContext.font = '20px courier'
-      var text = char.name + ': ' + char.health
-      uiContext.fillText(text, 30, (i + 1) * 40)
-      i++
-    })
-    drawPlayerMarker(getPlayerPosition())
-  }
 }
 
 function getPlayerPosition () {
   var bodyId = Characters.findOne({ userId: localStorage.userId }).bodyId
-  var playerBody =  ui.framesToRender[0].bodies.filter(function (body) {
+  var playerBody = ui.framesToRender[0].bodies.filter(function (body) {
     if (body.id === bodyId) return body
-  })
+  })[0]
   return playerBody.position
 }
 
 function drawPlayerMarker (position) {
   // Get the position of the player and draw a lil white triangle above it
-  uiContext.beginPath()
+  ui.uiContext.beginPath()
   var translatedPosition = translateToCamera(position)
-  uiContext.moveTo(translatedPosition[0], worldCanvas.height - translatedPosition[1] - 40)
-  uiContext.lineTo(translatedPosition[0] - 10, worldCanvas.height - translatedPosition[1] - 60)
-  uiContext.lineTo(translatedPosition[0] + 10, worldCanvas.height - translatedPosition[1] - 60)
-  uiContext.closePath()
-  uiContext.strokeStyle = 'white'
-  uiContext.lineWidth = 3
-  uiContext.stroke()
+  ui.uiContext.moveTo(translatedPosition[0], ui.worldCanvas.height - translatedPosition[1] - 40)
+  ui.uiContext.lineTo(translatedPosition[0] - 10, ui.worldCanvas.height - translatedPosition[1] - 60)
+  ui.uiContext.lineTo(translatedPosition[0] + 10, ui.worldCanvas.height - translatedPosition[1] - 60)
+  ui.uiContext.closePath()
+  ui.uiContext.strokeStyle = 'white'
+  ui.uiContext.lineWidth = 3
+  ui.uiContext.stroke()
 }
 
 function aim (callback) {
@@ -273,8 +281,8 @@ function aim (callback) {
     // HammerJS tells us where the user started dragging relative to the page, not the canvas - translate here
     // We grab the position at the start of the drag and remember it to draw a nice arrow from
     var center = {
-      x: event.center.x - uiCanvas.getBoundingClientRect().left,
-      y: event.center.y - uiCanvas.getBoundingClientRect().top
+      x: event.center.x - ui.uiCanvas.getBoundingClientRect().left,
+      y: event.center.y - ui.uiCanvas.getBoundingClientRect().top
     }
     plugins.hammer.on('pan', function (event) {
       // The distance of the drag is measured in pixels, so we have to standardise it before
@@ -308,7 +316,17 @@ function jump (angle, power) {
   var stepX = (power * Math.cos(radians))
   var stepY = (power * Math.sin(radians))
   var velocity = [-stepX, stepY]
-  Turns.update({ number: turns.count() }, { $set: { player1: { jump: velocity } } })
+
+  var playerId = Characters.findOne({ userId: localStorage.userId })._id
+  Characters.update(playerId, {
+    $set: {
+      lastTurn: {
+        number: Turns.find().count(),
+        action: 'jump',
+        velocity: velocity
+      }
+    }
+  })
 }
 
 function fireProjectile (angle, power) {
@@ -358,7 +376,7 @@ function fireProjectile (angle, power) {
 
 function translateDistanceToPower (distance) {
   // Divide the height of the canvas by the distance of our drag - we'll set a 'power limit' of 50% screen height
-  var power = distance / worldCanvas.height
+  var power = distance / ui.worldCanvas.height
   if (power > 0.5) power = 0.5
   // The maths are easier if our 'max power' is 100
   power = power * 200
