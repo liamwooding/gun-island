@@ -174,6 +174,11 @@ function drawBody (body) {
       var shapePosition = [body.position[0] +  body.shapeOffsets[i][0], body.position[1] +  body.shapeOffsets[i][1]]
       shapePosition = translateToCamera(shapePosition)
       ui.worldContext.arc(shapePosition[0], shapePosition[1], shape.radius, 0, 2 * Math.PI)
+    } else if (shape.type === p2.Shape.PARTICLE) {
+      console.log(body)
+      var shapePosition = [body.position[0] +  body.shapeOffsets[i][0], body.position[1] +  body.shapeOffsets[i][1]]
+      shapePosition = translateToCamera(shapePosition)
+      ui.worldContext.arc(shapePosition[0], shapePosition[1], body.data.size, 0, 2 * Math.PI)
     } else {
       var shapePosition = [body.position[0] +  body.shapeOffsets[i][0], body.position[1] +  body.shapeOffsets[i][1]]
       shapePosition = translateToCamera(shapePosition)

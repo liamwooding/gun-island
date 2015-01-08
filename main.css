@@ -65,11 +65,12 @@ canvas#uiCanvas {
 }
 .action-buttons .shoot {
   position: absolute;
-  bottom: -35px;
-  left: 10px;
-  width: 30px;
-  height: 30px;
-  background: transparent url(aim.png) center center / 100% auto no-repeat;
+  top: -50px;
+  left: -50px;
+  width: 100px;
+  height: 100px;
+  border-radius: 50px;
+  background: rgba(0, 0, 0, 0.7);
 }
 .action-buttons .active {
   background: transparent url(cancel.png) center center / 100% auto no-repeat;
