@@ -1,8 +1,9 @@
 var plugins = {}
 
-var ui = {
+ui = {
   state: null,
   framesToRender: [],
+  lastTurn: null,
   aimArrow: {},
   worldCanvas: null,
   worldContext: null,
@@ -10,7 +11,7 @@ var ui = {
   uiContext: null
 }
 
-var styles = {
+styles = {
   colours: {
     sky: '#58A2C4',
     ground: '#FFFFFF',
@@ -24,7 +25,7 @@ var styles = {
   }
 }
 
-var camera = {
+camera = {
   zoom: 1,
   x: 0,
   y: 0
@@ -92,6 +93,7 @@ Template.game.rendered = function () {
   Turns.find().observeChanges({
     added: function (id, turn) {
       ui.state = 'rendering'
+      ui.lastTurn = turn.time
       ui.framesToRender = ui.framesToRender.concat(turn.frames)
     }
   })
@@ -114,10 +116,17 @@ function render (now) {
 
   drawUI(frame)
 
-  if (ui.state !== 'action' && ui.framesToRender.length > 1) {
-    ui.framesToRender.shift()
-  } else {
-    ui.state = 'action'
+  if (ui.state !== 'action') {
+    if (ui.framesToRender.length > 1) {
+      var idealFrameSpeed = 1000 / 60
+      var lag = (ui.framesToRender.length * idealFrameSpeed) - (ui.lastTurn + 3200 - Date.now())
+      console.log(lag)
+      if (lag > 0) ui.framesToRender.splice(0, Math.round(lag / idealFrameSpeed))
+      else ui.framesToRender.shift()
+    } else {
+      console.log('=================')
+      ui.state = 'action'
+    }
   }
   requestAnimationFrame(render)
 }
@@ -228,13 +237,12 @@ function drawUI (frame) {
 
   ui.uiContext.fillStyle = 'white'
   
-  var i = 0
-  Characters.find().fetch().forEach(function (char) {
+  if (ui.lastTurn && ui.lastTurn + 3000 > Date.now()) {
     ui.uiContext.font = '20px courier'
-    var text = char.id + ': ' + char.health
-    ui.uiContext.fillText(text, 30, (i + 1) * 40)
-    i++
-  })
+    var text = ui.lastTurn + 3000 - Date.now()
+    ui.uiContext.fillText(text, 30, 40)
+  }
+
   drawPlayerMarker(getPlayerPosition())
 
 }

@@ -130,7 +130,8 @@ function tickPhysics (newTurn) {
   if (framesToPush.length >= 180) {
     Turns.insert({
       frames: framesToPush,
-      number: Turns.find().count() + 1
+      number: Turns.find().count() + 1,
+      time: Date.now()
     })
     pause = true
     framesToPush = []
