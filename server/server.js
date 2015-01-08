@@ -294,8 +294,6 @@ function genTerrain (height, variance) {
   terrainVertices.push(bottomRightCorner)
   terrainVertices.push(bottomLeftCorner)
 
-  console.log(terrainVertices)
-
   var islandBody = new p2.Body({
     position: [200, 0]
   })
