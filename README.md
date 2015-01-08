@@ -1,29 +1,17 @@
-#Want to canvas
+#Welcome To Gun Island
 
-###Make an HTML5 canvas game!
+## 2D Synchronous turn-based gunfighter MMO
+###A rich physical simulation of a world where the only verb is Shoot
 
-This is one of a series of 3 beginner friendly projects for 24 Pull Requests: http://24pullrequests.com/.
+The aim is to have a physics-driven game which allows an arbitrary number of players to drop in and out at any time.
 
-We want you to help us to build an HTML5 game, we are open to the concept and complexity. We suggests to start with a story or idea that you can add on this README!
+- Drag away from your character to aim a shot
+- Shots have kickback
+- Explosions will fling characters around
+- These are your only means of propulsion
 
-If you have never made a canvas game before start with this code:
+## Installation
 
-```
-<!DOCTYPE html>
-
-<html>
-<head>
-    <title>Founders & Coders</title>
-</head>
-<body>
-    <canvas id="canvas" width="500" height="500"/>
-</body>
-</html>
-```
-
-Other than that, do whatever you think is best. If you want inspiration, help or advise, feel free to message the founders & coders team. Find us here: https://github.com/foundersandcoders.
-
-###Check out our other projects:
-
-* Build a blogging platform: https://github.com/foundersandcoders/we-love-to-learn
-* Make an API call: https://github.com/foundersandcoders/Monkey-Phone
+- Install Meteor: https://www.meteor.com/install
+- cd into folder
+- run meteor
