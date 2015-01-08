@@ -73,5 +73,5 @@ canvas#uiCanvas {
   background: rgba(0, 0, 0, 0.7);
 }
 .action-buttons .active {
-  background: transparent url(cancel.png) center center / 100% auto no-repeat;
+  background: rgba(0, 0, 0, 0.1);
 }

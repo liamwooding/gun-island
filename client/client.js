@@ -120,7 +120,7 @@ function render (now) {
     if (ui.framesToRender.length > 1) {
       var idealFrameSpeed = 1000 / 60
       var lag = (ui.framesToRender.length * idealFrameSpeed) - (ui.lastTurn + Config.playTime - Date.now())
-      var skipFrames = Math.round(lag / idealFrameSpeed) / 5
+      var skipFrames = Math.round((lag / idealFrameSpeed) / 5)
       console.log(skipFrames)
       if (lag > 0) ui.framesToRender.splice(0, skipFrames > 0 ? skipFrames : 1)
       else ui.framesToRender.shift()

@@ -3,12 +3,14 @@ Characters = new Mongo.Collection('Characters')
 Turns = new Mongo.Collection('Turns')
 
 Config = {
-  turnTime: 5000,
-  playTime: 3000,
+  turnTime: 4000,
+  playTime: 2000,
   actions: {
     shoot: {
-      velocityFactor: 6,
-      kickBackFactor: 0.6
+      bulletMass: 0.01,
+      velocityFactor: 2.5,
+      kickBackFactor: 0.7,
+      explosionForce: 10
     },
     jump: {
       velocityFactor: 1.5
