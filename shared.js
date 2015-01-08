@@ -2,6 +2,20 @@ GameState = new Mongo.Collection('GameState')
 Characters = new Mongo.Collection('Characters')
 Turns = new Mongo.Collection('Turns')
 
+Config = {
+  turnTime: 5000,
+  playTime: 3000,
+  actions: {
+    shoot: {
+      velocityFactor: 6,
+      kickBackFactor: 0.6
+    },
+    jump: {
+      velocityFactor: 1.5
+    }
+  }
+}
+
 // function genTerrain (floor, height, world) {
 //   var renderer = world.renderer()
 //   var xPoints = []

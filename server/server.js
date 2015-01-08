@@ -93,6 +93,12 @@ Meteor.startup(function () {
 })
 
 function tickPhysics (newTurn) {
+  if (Characters.find().count() === 0) {
+    Meteor.setTimeout(function () {
+      tickPhysics()
+    }, 1000)
+    return
+  }
   if (newTurn === true) {
     var turnNumber = Turns.find().count()
     Characters.find().forEach(function (character) {
@@ -104,12 +110,6 @@ function tickPhysics (newTurn) {
         }
       }
     })
-  }
-  if (Characters.find().count() === 0) {
-    Meteor.setTimeout(function () {
-      tickPhysics()
-    }, 1000 / 60)
-    return
   }
   tick++
   world.step(0.017)
@@ -127,7 +127,7 @@ function tickPhysics (newTurn) {
     tick: tick
   })
   framesToPush.push(frame)
-  if (framesToPush.length >= 180) {
+  if (framesToPush.length >= Config.playTime / 16.7) {
     Turns.insert({
       frames: framesToPush,
       number: Turns.find().count() + 1,
@@ -135,12 +135,14 @@ function tickPhysics (newTurn) {
     })
     pause = true
     framesToPush = []
+    console.log('Stopping:', Date.now())
     Meteor.setTimeout(function () {
+      console.log('Starting:', Date.now())
       pause = false
       tickPhysics(true)
-    }, 10000)
+    }, Config.turnTime)
   }
-  if (!pause) tickPhysics()
+  if (!pause) Meteor.setTimeout(tickPhysics, 1000 / 60)
 }
 
 function makeCharacter (userId) {
@@ -178,14 +180,15 @@ function jump (bodyId, angle, power) {
   var player = world.getBodyById(bodyId)
   player.wakeUp()
   var radians = angle * Math.PI / 180
-  var stepX = (power * Math.cos(radians)) * 1.5
-  var stepY = (power * Math.sin(radians)) * 1.5
+  var stepX = (power * Math.cos(radians)) * Config.actions.jump.velocityFactor
+  var stepY = (power * Math.sin(radians)) * Config.actions.jump.velocityFactor
   player.velocity = [player.velocity[0] + stepX, player.velocity[1] - stepY]
   console.log(player.velocity)
 }
 
 function shoot (bodyId, angle, power) {
   var player = world.getBodyById(bodyId)
+  var shootCfg = Config.actions.shoot
   // We use the angle to work out how many pixels we should move the projectile each frame
   var radians = angle * Math.PI / 180
   var stepX = (power * Math.cos(radians))
@@ -201,14 +204,13 @@ function shoot (bodyId, angle, power) {
   projectileBody.addShape(projectileShape)
 
   world.addBody(projectileBody)
-  projectileBody.velocity = [stepX * 6, -stepY * 6]
-  player.velocity = [player.velocity[0] - (stepX * 0.6), player.velocity[1] + (stepY * 0.6)]
+  projectileBody.velocity = [stepX * shootCfg.velocityFactor, -stepY * shootCfg.velocityFactor]
+  player.velocity = [player.velocity[0] - (stepX * shootCfg.kickBackFactor), player.velocity[1] + (stepY * shootCfg.kickBackFactor)]
   projectileBody.gameData = {
     bounced: 0
   }
 
   world.on('impact', function (impact) {
-    console.log(impact)
     var impactedProjectile
     if (impact.bodyA.id === projectileBody.id) impactedProjectile = impact.bodyA
     if (impact.bodyB.id === projectileBody.id) impactedProjectile = impact.bodyB

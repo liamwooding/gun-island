@@ -119,12 +119,10 @@ function render (now) {
   if (ui.state !== 'action') {
     if (ui.framesToRender.length > 1) {
       var idealFrameSpeed = 1000 / 60
-      var lag = (ui.framesToRender.length * idealFrameSpeed) - (ui.lastTurn + 3200 - Date.now())
-      console.log(lag)
+      var lag = (ui.framesToRender.length * idealFrameSpeed) - (ui.lastTurn + Config.playTime - Date.now())
       if (lag > 0) ui.framesToRender.splice(0, Math.round(lag / idealFrameSpeed))
       else ui.framesToRender.shift()
     } else {
-      console.log('=================')
       ui.state = 'action'
     }
   }
