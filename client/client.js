@@ -240,14 +240,13 @@ function drawUI (frame) {
 
   ui.uiContext.fillStyle = 'white'
   
-  if (ui.lastTurn && ui.lastTurn + 3000 > Date.now()) {
+  if (ui.lastTurn && ui.lastTurn + Config.playTime < Date.now()) {
     ui.uiContext.font = '20px courier'
-    var text = ui.lastTurn + 3000 - Date.now()
+    var text = Date.now() - (ui.lastTurn + Config.playTime)
     ui.uiContext.fillText(text, 30, 40)
   }
 
   drawPlayerMarker(getPlayerPosition())
-
 }
 
 function getPlayerPosition () {

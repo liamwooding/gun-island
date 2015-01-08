@@ -142,14 +142,12 @@ function tickPhysics (newTurn) {
     })
     pause = true
     framesToPush = []
-    console.log('Stopping:', Date.now())
     Meteor.setTimeout(function () {
-      console.log('Starting:', Date.now())
       pause = false
       tickPhysics(true)
-    }, Config.turnTime)
+    }, Config.playTime + Config.turnTime)
   }
-  if (!pause) Meteor.setTimeout(tickPhysics, 1000 / 60)
+  if (!pause) tickPhysics()
 }
 
 function makeCharacter (userId) {
@@ -157,7 +155,7 @@ function makeCharacter (userId) {
   // Return an object that describes our new character
   var characterBody = new p2.Body({
     mass: 5,
-    position: [ Math.random() * 500, 200 ],
+    position: [ 100 + (Math.random() * 500), 200 ],
     fixedRotation: true
   })
 
