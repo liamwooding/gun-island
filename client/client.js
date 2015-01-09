@@ -182,6 +182,7 @@ function drawBody (body) {
       shapePosition = translateToCamera(shapePosition)
       ui.worldContext.arc(shapePosition[0], shapePosition[1], body.data.size, 0, 2 * Math.PI)
     } else {
+      console.log(body)
       var shapePosition = [body.position[0] +  body.shapeOffsets[i][0], body.position[1] +  body.shapeOffsets[i][1]]
       shapePosition = translateToCamera(shapePosition)
       var vertices = shape.vertices.map(function (vertex) {

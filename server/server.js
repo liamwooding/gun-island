@@ -88,7 +88,7 @@ Meteor.startup(function () {
   groundBody.addShape(groundShape)
   world.addBody(groundBody)
 
-  genTerrain(150, 30)
+  genTerrain()
 
   pause = false
   tickPhysics()
@@ -199,7 +199,8 @@ function shoot (bodyId, angle, power) {
     mass: Config.actions.shoot.bulletMass,
     position: [player.position[0] + startX, player.position[1] - startY]
   })
-  var projectileShape = new p2.Circle(5)
+  var projectileShape = new p2.Circle(3)
+  //projectileShape.type = 'kinematic'
   projectileShape.material = projectileMaterial
   projectileBody.addShape(projectileShape)
   projectileBody.data = {
@@ -216,7 +217,7 @@ function shoot (bodyId, angle, power) {
     if (impact.bodyB.id === projectileBody.id) impactedProjectile = impact.bodyB
     
     if (impactedProjectile) {
-      impactProjectile(impactedProjectile, 100)
+      impactProjectile(impactedProjectile, 40)
     }
   })
 }
@@ -254,50 +255,81 @@ function impactProjectile (projectile, explosionSize) {
   world.removeBody(projectile)
 }
 
-function genTerrain (height, variance) {
-  var xPoints = []
-  var yPoints = []
-  // Get a number between 5 and 15. This will be the number of angles along our line
-  var numberOfPoints = Math.round(20 + (Math.random() * 20))
-  // Loop over this number, generating a number at least as high as 'floor' and as large as 'floor + height'
-  // These will represent the height of the peaks and valleys of our terrain
-  for (var i = 0; i < numberOfPoints; i++) {
-    var point
-    if (i === 0) point = Math.random() * height
-    else {
-      point = yPoints[i-1] + (Math.random() * variance) - (variance / 2) 
-    } 
-    yPoints.push(point)
-  }
-  // We do something similar again to decide how far apart these points are on the X axis, adding the previous value to
-  // each new random number so we get an increasing list of numbers with random gaps between them
-  for (var i = 0; i < numberOfPoints; i++) {
-    if (i > 0) var point = xPoints[i - 1] + 10 + (Math.random() * 100)
-    else var point = 10 + (Math.random() * 100)
-    xPoints.push(point)
-  }
-  // However, we now have a range of points on the X axis that may be larger than the width of our screen, so we squash them down
-  // Get the last point and divide it by the screen width, then multiply all points by this number
-  var squashFactor = 600 / (xPoints[xPoints.length - 1])
+function genTerrain () {
+  // var xPoints = []
+  // var yPoints = []
+  // // Get a number between 5 and 15. This will be the number of angles along our line
+  // var numberOfPoints = Math.round(20 + (Math.random() * 20))
+  // // Loop over this number, generating a number at least as high as 'floor' and as large as 'floor + height'
+  // // These will represent the height of the peaks and valleys of our terrain
+  // for (var i = 0; i < numberOfPoints; i++) {
+  //   var point
+  //   if (i === 0) point = Math.random() * height
+  //   else {
+  //     point = yPoints[i-1] + (Math.random() * variance) - (variance / 2) 
+  //   } 
+  //   yPoints.push(point)
+  // }
+  // // We do something similar again to decide how far apart these points are on the X axis, adding the previous value to
+  // // each new random number so we get an increasing list of numbers with random gaps between them
+  // for (var i = 0; i < numberOfPoints; i++) {
+  //   if (i > 0) var point = xPoints[i - 1] + 10 + (Math.random() * 100)
+  //   else var point = 10 + (Math.random() * 100)
+  //   xPoints.push(point)
+  // }
+  // // However, we now have a range of points on the X axis that may be larger than the width of our screen, so we squash them down
+  // // Get the last point and divide it by the screen width, then multiply all points by this number
+  // var squashFactor = 600 / (xPoints[xPoints.length - 1])
   
-  // Array.map() is a neato functional way of turning an array into another array
-  // We're looping through our array and making a new array of vector objects
-  var terrainVertices = xPoints.map(function (xPoint, i) {
-    return [
-      Math.round(xPoint * squashFactor),
-      Math.round(yPoints[i])
+  // // Array.map() is a neato functional way of turning an array into another array
+  // // We're looping through our array and making a new array of vector objects
+  // var terrainVertices = xPoints.map(function (xPoint, i) {
+  //   return [
+  //     Math.round(xPoint * squashFactor),
+  //     Math.round(yPoints[i])
+  //   ]
+  // })
+  // // We'll stretch the shape out way beyond the edges of the screen to be safe
+  // var bottomRightCorner = [600, -400]
+  // var bottomLeftCorner = [0, -400]
+  // terrainVertices.push(bottomRightCorner)
+  // terrainVertices.push(bottomLeftCorner)
+
+  var islands = [
+    [
+      [ 200, 300 ],
+      [ 215, 350 ],
+      [ 400, 310 ],
+      [ 250, 280 ]
+    ],
+    [
+      [ 500, 500 ],
+      [ 500, 570 ],
+      [ 760, 600 ],
+      [ 820, 450 ]
+    ],
+    [
+      [ 610, 250 ],
+      [ 730, 250 ],
+      [ 730, 310 ],
+      [ 770, 320 ],
+      [ 860, 160 ]
     ]
-  })
-  // We'll stretch the shape out way beyond the edges of the screen to be safe
-  var bottomRightCorner = [600, -400]
-  var bottomLeftCorner = [0, -400]
-  terrainVertices.push(bottomRightCorner)
-  terrainVertices.push(bottomLeftCorner)
+  ]
 
-  var islandBody = new p2.Body({
-    position: [200, 0]
+  islands.forEach(function (island) {
+    var islandBody = new p2.Body({
+      type: p2.Body.STATIC
+    })
+    islandBody.fromPolygon(island)
+    world.addBody(islandBody)
+    console.log(islandBody)
   })
-  islandBody.fromPolygon(terrainVertices)
 
-  world.addBody(islandBody)
+  // var islandBody = new p2.Body({
+  //   position: [200, 0]
+  // })
+  // islandBody.fromPolygon(terrainVertices)
+
+  // world.addBody(islandBody)
 }
