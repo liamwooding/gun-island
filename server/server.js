@@ -1,5 +1,3 @@
-var p2 = Meteor.npmRequire('p2')
-
 Meteor.publish('GameState', function () {
   return GameState.find()
 })

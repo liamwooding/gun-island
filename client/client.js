@@ -117,6 +117,8 @@ Template.game.rendered = function () {
     }
   })
 
+  setupUI()
+
   setupCameraControls()
   requestAnimationFrame(render)
 }
@@ -131,7 +133,7 @@ function getGraphicsFromBody (body) {
   } else if (shape.type === 32) {
     pixiBody = new pixi.Rectangle(-shape.width / 2, -shape.height / 2, body.shapes[0].width, body.shapes[0].height)
   } else if (shape.vertices) {
-    pixiBody = new pixi.Polygon(p2VerticesToPoints(body).vertices)
+    pixiBody = new pixi.Polygon(p2VerticesToPoints(body))
   } else {
     console.warn('The heck is this:', body)
   }
@@ -149,69 +151,28 @@ function getGraphicsFromBody (body) {
 }
 
 function startTurn () {
-
+  console.log('turn starts')
+  aim(shoot)
 }
 
 function render () {
   renderer.render(stage)
-
-  // var frame = ui.framesToRender[0]
-
-  // if (!frame || !Characters.findOne({ userId: localStorage.userId })) {
-  //   requestAnimationFrame(render)
-  //   return
-  // }
-
-  // ui.worldContext.clearRect(0, 0, ui.worldCanvas.width, ui.worldCanvas.height)
-  // if (frame) {
-  //   frame.bodies.forEach(function (body) {
-  //     drawBody(body)
-  //   })
-  // }
-
-  // drawUI(frame)
-
-  // if (ui.state !== 'action') {
-  //   if (ui.framesToRender.length > 1) {
-  //     var idealFrameSpeed = 1000 / 60
-  //     var lag = (ui.framesToRender.length * idealFrameSpeed) - (ui.lastTurn + Config.playTime - Date.now())
-  //     var skipFrames = Math.round((lag / idealFrameSpeed) / 5)
-  //     console.log(skipFrames)
-  //     if (lag > 0) ui.framesToRender.splice(0, skipFrames > 0 ? skipFrames : 1)
-  //     else ui.framesToRender.shift()
-  //   } else {
-  //     ui.state = 'action'
-  //   }
-  // }
   requestAnimationFrame(render)
 }
 
 function p2VerticesToPoints (p2Body) {
-  var lowX = p2Body.shapes[0].vertices[0][0]
-  var lowY = p2Body.shapes[0].vertices[0][1]
-  var highX = p2Body.shapes[0].vertices[0][0]
-  var highY = p2Body.shapes[0].vertices[0][1]
-  var vertices = p2Body.shapes[0].vertices.map(function (vertex) {
-    if (vertex[0] < lowX) lowX = vertex[0]
-    if (vertex[1] < lowY) lowY = vertex[1]
-    if (vertex[0] > highX) highX = vertex[0]
-    if (vertex[0] > highY) highY = vertex[1]
+  var points = p2Body.shapes[0].vertices.map(function (vertex) {
     return new pixi.Point(vertex[0], vertex[1])
   })
-  var pixiObject = {
-    width: highX - lowX,
-    height: highY - lowY,
-    vertices: vertices
-  }
-  return pixiObject
+  return points
 }
 
 function setupCameraControls () {
-  hammer.off('panstart pan panend')
-  hammer.on('pan', function (event) {
-    world.position.x -= event.velocityX * (15 / world.scale.x)
-    world.position.y += event.velocityY * (15 / world.scale.x)
-  })
+  // hammer.off('panstart pan panend')
+  // hammer.on('pan', function (event) {
+  //   world.position.x -= event.velocityX * (15 / world.scale.x)
+  //   world.position.y += event.velocityY * (15 / world.scale.x)
+  // })
   $(document).on('mousewheel', function (event) {
     var scale = event.deltaY / 60
     world.scale.x += scale
@@ -225,21 +186,29 @@ function setupCameraControls () {
       return
     }
   })
-  hammer.on('pinchstart', function (event) {
-    console.log(event)
-    // var scale = event.deltaY / 60
-    // world.scale.x += scale
-    // world.scale.y += scale
-    // if (world.scale.x > 10) {
-    //   world.scale.x = world.scale.y = 10
-    //   return
-    // }
-    // if (world.scale.x < 0.4) {
-    //   world.scale.x = world.scale.y = 0.4
-    //   return
-    // }
+  // hammer.on('pinchstart', function (event) {
+  //   console.log(event)
+  //   // var scale = event.deltaY / 60
+  //   // world.scale.x += scale
+  //   // world.scale.y += scale
+  //   // if (world.scale.x > 10) {
+  //   //   world.scale.x = world.scale.y = 10
+  //   //   return
+  //   // }
+  //   // if (world.scale.x < 0.4) {
+  //   //   world.scale.x = world.scale.y = 0.4
+  //   //   return
+  //   // }
+  // })
+}
 
-  })
+function setupUI () {
+  var aimArrow = new pixi.Rectangle(0, 0, 1, 2)
+  var arrowGraphics = new Graphics()
+  arrowGraphics.addChild(aimArrow)
+  arrowGraphics.visible = false
+  ui.addChild(arrowGraphics)
+  
 }
 
 function drawUI (frame) {
@@ -328,11 +297,12 @@ function aim (callback) {
   * to tell it to stop.
   */
   hammer.on('panstart', function (event) {
+    console.log(event)
     // HammerJS tells us where the user started dragging relative to the page, not the canvas - translate here
     // We grab the position at the start of the drag and remember it to draw a nice arrow from
     var center = {
-      x: event.center.x - ui.uiCanvas.getBoundingClientRect().left,
-      y: event.center.y - ui.uiCanvas.getBoundingClientRect().top
+      x: event.center.x,
+      y: event.center.y
     }
     hammer.on('pan', function (event) {
       // The distance of the drag is measured in pixels, so we have to standardise it before
