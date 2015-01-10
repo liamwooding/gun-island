@@ -4,12 +4,14 @@ stage = null
 world = null
 ui = null
 renderer = null
+player = null
 
 Game = {
   state: null,
   framesToRender: [],
   lastTurn: null,
-  aimArrow: {},
+  aimArrow: null,
+  arrowGraphics: null, 
   worldCanvas: null,
   worldContext: null,
   uiCanvas: null,
@@ -89,8 +91,9 @@ Template.game.rendered = function () {
   Bodies.find().observeChanges({
     added: function (id, body) {
       console.log('added:', body)
-      var graphics = getGraphicsFromBody(body)
-      world.addChild(graphics)
+      var playerGraphics = getGraphicsFromBody(body)
+      if (body.data && body.data.userId === localStorage.userId) player = playerGraphics
+      world.addChild(playerGraphics)
     },
     changed: function (id, fields) {
       if (!fields) return
@@ -103,14 +106,16 @@ Template.game.rendered = function () {
         y: body.position[1]
       }
     }
-  })  
+  })
 
   Turns.find().observeChanges({
     added: function (id, turn) {
+      console.log('added', id, turn)
       Game.state = turn.state
       Game.lastTurn = turn.time
     },
     changed: function (id, fields) {
+      console.log('changed', id, fields)
       if (!fields) return
       if (fields.state) Game.state = fields.state
       if (Game.state === 'turn') startTurn()
@@ -132,10 +137,12 @@ function getGraphicsFromBody (body) {
     pixiBody = new pixi.Circle(-shape.radius / 2, -shape.radius / 2, shape.radius)
   } else if (shape.type === 32) {
     pixiBody = new pixi.Rectangle(-shape.width / 2, -shape.height / 2, body.shapes[0].width, body.shapes[0].height)
+  } else if (shape.type === 2 && body.data.type === 'explosion') {
+    pixiBody = new pixi.Circle(-body.data.size / 2, -body.data.size / 2, -body.data.size)
   } else if (shape.vertices) {
     pixiBody = new pixi.Polygon(p2VerticesToPoints(body))
   } else {
-    console.warn('The heck is this:', body)
+    console.warn('The heck is this:', shape.type)
   }
   pixiBody.physicsId = body.physicsId
 
@@ -157,22 +164,14 @@ function startTurn () {
 
 function render () {
   renderer.render(stage)
+  if (player) world.position = {
+    x: renderer.view.width / 2 - player.position.x - (player.width / 2),
+    y: renderer.view.height / 2 - player.position.y - (player.height / 2)
+  }
   requestAnimationFrame(render)
 }
 
-function p2VerticesToPoints (p2Body) {
-  var points = p2Body.shapes[0].vertices.map(function (vertex) {
-    return new pixi.Point(vertex[0], vertex[1])
-  })
-  return points
-}
-
 function setupCameraControls () {
-  // hammer.off('panstart pan panend')
-  // hammer.on('pan', function (event) {
-  //   world.position.x -= event.velocityX * (15 / world.scale.x)
-  //   world.position.y += event.velocityY * (15 / world.scale.x)
-  // })
   $(document).on('mousewheel', function (event) {
     var scale = event.deltaY / 60
     world.scale.x += scale
@@ -186,103 +185,16 @@ function setupCameraControls () {
       return
     }
   })
-  // hammer.on('pinchstart', function (event) {
-  //   console.log(event)
-  //   // var scale = event.deltaY / 60
-  //   // world.scale.x += scale
-  //   // world.scale.y += scale
-  //   // if (world.scale.x > 10) {
-  //   //   world.scale.x = world.scale.y = 10
-  //   //   return
-  //   // }
-  //   // if (world.scale.x < 0.4) {
-  //   //   world.scale.x = world.scale.y = 0.4
-  //   //   return
-  //   // }
-  // })
 }
 
 function setupUI () {
-  var aimArrow = new pixi.Rectangle(0, 0, 1, 2)
-  var arrowGraphics = new Graphics()
-  arrowGraphics.addChild(aimArrow)
-  arrowGraphics.visible = false
-  ui.addChild(arrowGraphics)
-  
-}
-
-function drawUI (frame) {
-  if (!getPlayerPosition()) return
-  var translatedPlayerPosition = translateToCamera(getPlayerPosition())
-  if (ui.state === 'action') {
-    $('.action-buttons').show()
-    $('.action-buttons').offset({left: translatedPlayerPosition[0], top: ui.uiCanvas.height - translatedPlayerPosition[1]})
-  } else $('.action-buttons').hide()
-
-  // We draw anything which isn't governed by the physics engine in this function
-  ui.uiContext.clearRect(0, 0, ui.uiCanvas.width, ui.uiCanvas.height)
-
-  // Draw any ongoing explosions
-  frame.explosions.forEach(function (explosion, i) {
-    if (explosion.size >= explosion.maxSize) game.explosions.splice(i, 1)
-    ui.uiContext.beginPath()
-    var translatedPosition = translateToCamera(explosion.position)
-    ui.uiContext.arc(translatedPosition[0], ui.uiCanvas.height - translatedPosition[1], explosion.size, 0, Math.PI * 2, false)
-    ui.uiContext.lineWidth = explosion.size * 0.1
-    ui.uiContext.strokeStyle = styles.colours.ball1
-    ui.uiContext.fillStyle = styles.colours.explosion
-    ui.uiContext.stroke()
-    ui.uiContext.fill()
-    explosion.size += explosion.size * 0.4
-  })
-
-  if (ui.aimArrow && ui.aimArrow.power > 10) {
-    // Do some maths I copied from the internet
-    var radians = ui.aimArrow.angle * Math.PI / 180
-    var arrowToX = ui.aimArrow.start.x + (ui.aimArrow.power * Math.cos(radians) * 2)
-    var arrowToY = ui.aimArrow.start.y + (ui.aimArrow.power * Math.sin(radians) * 2)
-    // Draw the line
-    ui.uiContext.moveTo(ui.aimArrow.start.x, ui.aimArrow.start.y)
-    ui.uiContext.lineTo(arrowToX, arrowToY)
-    if (ui.state == 'aiming-jump') ui.uiContext.strokeStyle = styles.colours.jumpArrow
-    if (ui.state == 'aiming-shot') ui.uiContext.strokeStyle = styles.colours.shotArrow
-    ui.uiContext.lineWidth = 2
-    ui.uiContext.stroke()
-    ui.uiContext.beginPath()
-    ui.uiContext.arc(ui.aimArrow.start.x, ui.aimArrow.start.y, 200, radians - 0.02, radians + 0.02)
-    ui.uiContext.stroke()
-  }
-
-  ui.uiContext.fillStyle = 'white'
-  
-  if (ui.lastTurn && ui.lastTurn + Config.playTime < Date.now()) {
-    ui.uiContext.font = '20px courier'
-    var text = Date.now() - (ui.lastTurn + Config.playTime)
-    ui.uiContext.fillText(text, 30, 40)
-  }
-
-  drawPlayerMarker(getPlayerPosition())
-}
-
-function getPlayerPosition () {
-  var bodyId = Characters.findOne({ userId: localStorage.userId }).bodyId
-  var playerBody = ui.framesToRender[0].bodies.filter(function (body) {
-    if (body.id === bodyId) return body
-  })[0]
-  return playerBody.position
-}
-
-function drawPlayerMarker (position) {
-  // Get the position of the player and draw a lil white triangle above it
-  ui.uiContext.beginPath()
-  var translatedPosition = translateToCamera(position)
-  ui.uiContext.moveTo(translatedPosition[0], ui.worldCanvas.height - translatedPosition[1] - 40)
-  ui.uiContext.lineTo(translatedPosition[0] - 10, ui.worldCanvas.height - translatedPosition[1] - 60)
-  ui.uiContext.lineTo(translatedPosition[0] + 10, ui.worldCanvas.height - translatedPosition[1] - 60)
-  ui.uiContext.closePath()
-  ui.uiContext.strokeStyle = 'white'
-  ui.uiContext.lineWidth = 3
-  ui.uiContext.stroke()
+  Game.aimArrow = new pixi.Rectangle(0, 0, 1, 2)
+  Game.arrowGraphics = new pixi.Graphics()
+  Game.arrowGraphics.beginFill(0x000000)
+  Game.arrowGraphics.drawShape(Game.aimArrow)
+  Game.arrowGraphics.endFill()
+  Game.arrowGraphics.visible = false
+  ui.addChild(Game.arrowGraphics)
 }
 
 function aim (callback) {
@@ -309,15 +221,13 @@ function aim (callback) {
       // translating it into the 'power' of our shot. You might want to console.log out event.angle
       // here to see how HammerJS gives us angles.
       var power = translateDistanceToPower(event.distance)
-      ui.aimArrow = {
-        start: center,
-        angle: event.angle,
-        power: power
-      }
+      Game.arrowGraphics.visible = power > 10
+      updateArrow(center, event.angle, power)
     })
   })
   
   hammer.on('panend', function (event) {
+    Game.arrowGraphics.visible = false
     var power = translateDistanceToPower(event.distance)
     if (power <= 10) return
     hammer.off('panstart pan panend')
@@ -344,11 +254,31 @@ function shoot (angle, power) {
   $('.action-buttons').hide()
   $('.action-buttons .active').removeClass('active')
 
+  console.log('shooting')
   Meteor.call('declareAction', localStorage.userId, {
     action: 'shoot',
     angle: angle,
     power: power
   })
+}
+
+function updateArrow (center, angle, power) {
+  var radians = angle * Math.PI / 180
+  Game.arrowGraphics.clear()
+  Game.arrowGraphics.lineStyle(2, 0)
+  // Game.arrowGraphics.position = {
+  //   x: center.x,
+  //   y: renderer.view.height - center.y
+  // }
+  Game.arrowGraphics.moveTo(center.x, renderer.view.height - center.y)
+  Game.arrowGraphics.lineTo(center.x + (power * Math.cos(radians) * 2), renderer.view.height - center.y - (power * Math.sin(radians) * 2))
+}
+
+function p2VerticesToPoints (p2Body) {
+  var points = p2Body.shapes[0].vertices.map(function (vertex) {
+    return new pixi.Point(vertex[0], vertex[1])
+  })
+  return points
 }
 
 function translateDistanceToPower (distance) {

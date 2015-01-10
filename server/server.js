@@ -119,11 +119,11 @@ function tickPhysics (newTurn) {
     lastTurnTime = Date.now()
     var turnNumber = Turns.find().count()
     Characters.find().forEach(function (character) {
-      if (character.lastTurn && character.lastTurn.number === turnNumber) {
+      if (character.lastTurn && character.lastTurn.number === turnNumber - 1) {
         if (character.lastTurn.action === 'jump') {
-          jump(character.bodyId, character.lastTurn.angle, character.lastTurn.power)
+          jump(character.physicsId, character.lastTurn.angle, character.lastTurn.power)
         } else if (character.lastTurn.action === 'shoot') {
-          shoot(character.bodyId, character.lastTurn.angle, character.lastTurn.power)
+          shoot(character.physicsId, character.lastTurn.angle, character.lastTurn.power)
         }
       }
     })
@@ -142,27 +142,27 @@ function tickPhysics (newTurn) {
       shapes: body.shapes,
       data: body.data
     }
-
     var mongoBody = Bodies.findOne({ physicsId: body.id })
     if (mongoBody) Bodies.update(mongoBody, bodyObject)
     else Bodies.insert(bodyObject)
   })
   if (Date.now() >= lastTurnTime + Config.playTime) {
     console.log('done')
-    Turns.insert({
-      number: Turns.find().count() + 1,
-      state: 'play'
-    })
+    
     pause = true
     lastTurnTime = Date.now()
+    var lastTurn = Turns.findOne({ number: Turns.find().count() })
+    Turns.update(lastTurn, { $set: { state: 'turn' } })
     Meteor.setTimeout(function () {
-      var lastTurn = Turns.findOne({ number: Turns.find().count() })
-      Turns.update(lastTurn, { $set: { state: 'turn' } })
+      Turns.insert({
+        number: Turns.find().count() + 1,
+        state: 'play'
+      })
       pause = false
       tickPhysics(true)
-    }, Config.turnTime + 1000)
+    }, Config.turnTime)
   }
-  if (!pause) tickPhysics()
+  if (!pause) Meteor.setTimeout(tickPhysics, Math.round(1000 / 60))
 }
 
 function makeCharacter (userId) {
@@ -176,13 +176,15 @@ function makeCharacter (userId) {
 
   var characterShape = new p2.Rectangle(15, 20)
   characterBody.addShape(characterShape)
-
+  characterBody.data = {
+    userId: userId
+  }
   world.addBody(characterBody)
 
   characterData = {
     userId: userId,
     health: 100,
-    bodyId: characterBody.id
+    physicsId: characterBody.id
   }
 
   Characters.insert(characterData)
