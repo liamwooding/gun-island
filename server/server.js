@@ -21,7 +21,7 @@ var pause = true
 var tick = 0
 var explosions = []
 var framesToPush = []
-var lastTurn
+var lastTurnTime
 
 // Set up our materials
 var projectileMaterial = new p2.Material()
@@ -118,7 +118,7 @@ function tickPhysics (newTurn) {
   }
   console.log('alright')
   if (newTurn === true) {
-    lastTurn = Date.now()
+    lastTurnTime = Date.now()
     var turnNumber = Turns.find().count()
     Characters.find().forEach(function (character) {
       if (character.lastTurn && character.lastTurn.number === turnNumber) {
@@ -149,18 +149,20 @@ function tickPhysics (newTurn) {
     if (mongoBody) Bodies.update(mongoBody, bodyObject)
     else Bodies.insert(bodyObject)
   })
-  console.log(Date.now(), lastTurn + Config.playTime)
-  if (Date.now() >= lastTurn + Config.playTime) {
+  if (Date.now() >= lastTurnTime + Config.playTime) {
     console.log('done')
     Turns.insert({
-      number: Turns.find().count() + 1
+      number: Turns.find().count() + 1,
+      state: 'play'
     })
     pause = true
-    lastTurn = Date.now()
+    lastTurnTime = Date.now()
     Meteor.setTimeout(function () {
+      var lastTurn = Turns.findOne({ number: Turns.find().count() })
+      Turns.update(lastTurn, { $set: { state: 'turn' } })
       pause = false
       tickPhysics(true)
-    }, Config.playTime + Config.turnTime)
+    }, Config.turnTime + 1000)
   }
   if (!pause) tickPhysics()
 }

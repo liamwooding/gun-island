@@ -1,6 +1,8 @@
 pixi = PIXI
 hammer = null
 stage = null
+world = null
+ui = null
 renderer = null
 
 Game = {
@@ -35,13 +37,17 @@ camera = {
 }
 
 Template.game.rendered = function () {
-  stage = new PIXI.Stage(0x58A2C4)
-  renderer = new PIXI.autoDetectRenderer(window.innerWidth, window.innerHeight)
+  stage = new pixi.Stage(0x58A2C4)
+  // We add physics objects to the world, then move the "camera" by changing the world's position
+  world = new pixi.DisplayObjectContainer()
+  ui = new pixi.DisplayObjectContainer()
+  stage.addChild(world)
+  // The UI should be static tho
+  stage.addChild(ui)
+  renderer = new pixi.autoDetectRenderer(window.innerWidth, window.innerHeight, {
+    antialias: true
+  })
   document.body.appendChild(renderer.view)
-
-  console.log(renderer)
-
-  console.log(renderer)
 
   // Setup HammerJS, the mouse/touch gesture library we'll use for the controls
   hammer = new Hammer(renderer.view)
@@ -74,7 +80,6 @@ Template.game.rendered = function () {
       if (!localStorage.userId) localStorage.userId = Meteor.uuid()
 
       if (Characters.find({ userId: localStorage.userId }).count() === 0) {
-        console.log(Characters.find({ userId: localStorage.userId }).fetch())
         Meteor.call('addPlayer', localStorage.userId)
       }
     }
@@ -85,29 +90,34 @@ Template.game.rendered = function () {
     added: function (id, body) {
       console.log('added:', body)
       var graphics = getGraphicsFromBody(body)
-      stage.addChild(graphics)
+      world.addChild(graphics)
     },
-    changed: function (id, body) {
-      if (!body) return
-      var mongoBody = Bodies.findOne(id)
-      var pixiBody = stage.children.filter(function (child) {
-        console.log(child.graphicsData)
-        return child.graphicsData[0].shape.physicsId === mongoBody.physicsId
+    changed: function (id, fields) {
+      if (!fields) return
+      var body = Bodies.findOne(id)
+      var pixiBody = world.children.filter(function (child) {
+        return child.graphicsData[0].shape.physicsId === body.physicsId
       })[0]
       pixiBody.position = {
-        x: mongoBody.position[0],
-        y: mongoBody.position[1]
+        x: body.position[0],
+        y: body.position[1]
       }
     }
   })  
 
   Turns.find().observeChanges({
     added: function (id, turn) {
-      Game.state = 'rendering'
+      Game.state = turn.state
       Game.lastTurn = turn.time
+    },
+    changed: function (id, fields) {
+      if (!fields) return
+      if (fields.state) Game.state = fields.state
+      if (Game.state === 'turn') startTurn()
     }
   })
 
+  setupCameraControls()
   requestAnimationFrame(render)
 }
 
@@ -115,7 +125,7 @@ function getGraphicsFromBody (body) {
   var pixiBody
   var shape = body.shapes[0]
   if (shape.type === 4) {
-    pixiBody = new pixi.Rectangle(0, 0, renderer.view.width, 1)
+    pixiBody = new pixi.Rectangle(-10000, 0, renderer.view.width + 20000, 1)
   } else if (shape.type === 1) {
     pixiBody = new pixi.Circle(-shape.radius / 2, -shape.radius / 2, shape.radius)
   } else if (shape.type === 32) {
@@ -123,17 +133,14 @@ function getGraphicsFromBody (body) {
   } else if (shape.vertices) {
     pixiBody = new pixi.Polygon(p2VerticesToPoints(body).vertices)
   } else {
-    console.log('The heck is this:', body)
+    console.warn('The heck is this:', body)
   }
-  console.log(pixiBody)
   pixiBody.physicsId = body.physicsId
 
   var graphics = new pixi.Graphics()
   graphics.beginFill(0x000000)
   graphics.drawShape(pixiBody)
   graphics.endFill()
-  console.log(typeof pixiBody)
-  if (typeof pixiBody === PIXI.Polygon) console.log('is poly')
   graphics.position = {
     x: body.position[0],
     y: body.position[1]
@@ -141,12 +148,8 @@ function getGraphicsFromBody (body) {
   return graphics
 }
 
-function updateGraphicsFromBody (graphics, body) {
-  if (body.shapes[0].type === 4) return
-  graphics.position = {
-    x: body.position[0],
-    y: body.position[1]
-  }
+function startTurn () {
+
 }
 
 function render () {
@@ -183,18 +186,6 @@ function render () {
   requestAnimationFrame(render)
 }
 
-function translateToCamera (position) {
-  var x = ((position[0] - camera.x) * camera.zoom)
-  var y = ((position[1] - camera.y) * camera.zoom)
-  return [x, y]
-}
-
-function scaleToCamera (position) {
-  var x = position[0] * camera.zoom
-  var y = position[1] * camera.zoom
-  return [x, y]
-}
-
 function p2VerticesToPoints (p2Body) {
   var lowX = p2Body.shapes[0].vertices[0][0]
   var lowY = p2Body.shapes[0].vertices[0][1]
@@ -218,56 +209,36 @@ function p2VerticesToPoints (p2Body) {
 function setupCameraControls () {
   hammer.off('panstart pan panend')
   hammer.on('pan', function (event) {
-    camera.x += event.velocityX * (15 / camera.zoom)
-    camera.y -= event.velocityY * (15 / camera.zoom)
+    world.position.x -= event.velocityX * (15 / world.scale.x)
+    world.position.y += event.velocityY * (15 / world.scale.x)
   })
-  $(document).on('mousewheel', function(event) {
-    camera.zoom += event.deltaY / 60
-    if (camera.zoom > 10) {
-      camera.zoom = 10
+  $(document).on('mousewheel', function (event) {
+    var scale = event.deltaY / 60
+    world.scale.x += scale
+    world.scale.y += scale
+    if (world.scale.x > 10) {
+      world.scale.x = world.scale.y = 10
       return
     }
-    if (camera.zoom < 1) {
-      camera.zoom = 1
+    if (world.scale.x < 0.4) {
+      world.scale.x = world.scale.y = 0.4
       return
     }
   })
-}
+  hammer.on('pinchstart', function (event) {
+    console.log(event)
+    // var scale = event.deltaY / 60
+    // world.scale.x += scale
+    // world.scale.y += scale
+    // if (world.scale.x > 10) {
+    //   world.scale.x = world.scale.y = 10
+    //   return
+    // }
+    // if (world.scale.x < 0.4) {
+    //   world.scale.x = world.scale.y = 0.4
+    //   return
+    // }
 
-function drawBody (body) {
-  body.shapes.forEach(function (shape, i) {
-    ui.worldContext.beginPath()
-    ui.worldContext.fillStyle = shape.styles && shape.styles.fillStyle ? shape.styles.fillStyle : '#000000'
-    ui.worldContext.strokeStyle = shape.styles && shape.styles.strokeStyle ? shape.styles.strokeStyle : '#000000'
-    ui.worldContext.lineWidth = shape.styles && shape.styles.lineWidth ? shape.styles.lineWidth : 2
-    
-    if (shape.type === p2.Shape.PLANE) {
-      ui.worldContext.moveTo(0, translateToCamera(body.position)[1])
-      ui.worldContext.lineTo(ui.worldCanvas.width, translateToCamera(body.position)[1])
-    } else if (shape.type === p2.Shape.CIRCLE) {
-      var shapePosition = [body.position[0] +  body.shapeOffsets[i][0], body.position[1] +  body.shapeOffsets[i][1]]
-      shapePosition = translateToCamera(shapePosition)
-      ui.worldContext.arc(shapePosition[0], shapePosition[1], shape.radius, 0, 2 * Math.PI)
-    } else if (shape.type === p2.Shape.PARTICLE) {
-      console.log(body)
-      var shapePosition = [body.position[0] +  body.shapeOffsets[i][0], body.position[1] +  body.shapeOffsets[i][1]]
-      shapePosition = translateToCamera(shapePosition)
-      ui.worldContext.arc(shapePosition[0], shapePosition[1], body.data.size, 0, 2 * Math.PI)
-    } else {
-      console.log(body)
-      var shapePosition = [body.position[0] +  body.shapeOffsets[i][0], body.position[1] +  body.shapeOffsets[i][1]]
-      shapePosition = translateToCamera(shapePosition)
-      var vertices = shape.vertices.map(function (vertex) {
-        return scaleToCamera(vertex)
-      })
-      ui.worldContext.moveTo(shapePosition[0] + vertices[0][0], shapePosition[1] + vertices[0][1])
-      vertices.slice(1, vertices.length).forEach(function (vertex) {
-        ui.worldContext.lineTo(shapePosition[0] + vertex[0], shapePosition[1] + vertex[1])
-      })
-    }
-    ui.worldContext.closePath()
-    ui.worldContext.fill()
-    ui.worldContext.stroke()
   })
 }
 
