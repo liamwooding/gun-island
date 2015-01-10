@@ -1,6 +1,7 @@
 GameState = new Mongo.Collection('GameState')
 Characters = new Mongo.Collection('Characters')
 Turns = new Mongo.Collection('Turns')
+Bodies = new Mongo.Collection('Bodies')
 
 Config = {
   turnTime: 4000,

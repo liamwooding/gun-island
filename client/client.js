@@ -1,6 +1,9 @@
-var plugins = {}
+pixi = PIXI
+hammer = null
+stage = null
+renderer = null
 
-ui = {
+Game = {
   state: null,
   framesToRender: [],
   lastTurn: null,
@@ -32,7 +35,39 @@ camera = {
 }
 
 Template.game.rendered = function () {
+  stage = new PIXI.Stage(0x58A2C4)
+  renderer = new PIXI.autoDetectRenderer(window.innerWidth, window.innerHeight)
+  document.body.appendChild(renderer.view)
+
+  console.log(renderer)
+
+  console.log(renderer)
+
+  // Setup HammerJS, the mouse/touch gesture library we'll use for the controls
+  hammer = new Hammer(renderer.view)
+  // HammerJS only listens for horizontal drags by default, here we tell it listen for all directions
+  hammer.get('pan').set({ direction: Hammer.DIRECTION_ALL })
+
+  //camera.x = 0 - (ui.worldCanvas.width / 2)
+  //camera.y = 0 - (ui.worldCanvas.height / 2)
+
+  // resize canvas when the browser is resized
+  window.addEventListener('resize', function () {
+    renderer.width = window.innerWidth
+    renderer.height = window.innerHeight
+  }, true)
+
+  // Set up our click listeners for the action buttons (using jquery, for readability's sake)
+  $('.action-buttons').on('mousedown, touchstart', 'button.shoot', function () {
+    $(this).addClass('active')
+    Game.state = 'aiming-shot'
+    aim(function (angle, power) {
+      shoot(angle, power)
+    })
+  })
+
   Meteor.subscribe('GameState')
+  Meteor.subscribe('Turns')
   Meteor.subscribe('Characters', {
     onReady: function () {
       requestAnimationFrame(render)
@@ -44,90 +79,107 @@ Template.game.rendered = function () {
       }
     }
   })
-  Meteor.subscribe('Turns')
-  
-  // Setup our canvas for drawing the game world onto
-  ui.worldCanvas = document.getElementById('world')
-  ui.worldCanvas.width = window.innerWidth
-  ui.worldCanvas.height = window.innerHeight
-  ui.worldContext = ui.worldCanvas.getContext('2d')
-  // Setup a canvas for drawing UI elements onto
-  ui.uiCanvas = document.getElementById('uiCanvas')
-  ui.uiCanvas.width = window.innerWidth
-  ui.uiCanvas.height = window.innerHeight
-  ui.uiContext = ui.uiCanvas.getContext('2d')
-  // Setup HammerJS, the mouse/touch gesture library we'll use for the controls
-  plugins.hammer = new Hammer(document.getElementById('ui'))
-  // HammerJS only listens for horizontal drags by default, here we tell it listen for all directions
-  plugins.hammer.get('pan').set({ direction: Hammer.DIRECTION_ALL })
+  Meteor.subscribe('Bodies')
 
-  //camera.x = 0 - (ui.worldCanvas.width / 2)
-  //camera.y = 0 - (ui.worldCanvas.height / 2)
-
-  // resize canvas when the browser is resized
-  window.addEventListener('resize', function () {
-    ui.worldCanvas.width = window.innerWidth
-    ui.worldCanvas.height = window.innerHeight
-    ui.uiCanvas.width = window.innerWidth
-    ui.uiCanvas.height = window.innerHeight
-  }, true)
-
-  // Set up our click listeners for the action buttons (using jquery, for readability's sake)
-  $('.action-buttons').on('mousedown', 'button.jump', function () {
-    $(this).addClass('active')
-    ui.state = 'aiming-jump'
-    aim(function (angle, power) {
-      jump(angle, power)
-    })
-  })
-  $('.action-buttons').on('mousedown', 'button.shoot', function () {
-    $(this).addClass('active')
-    ui.state = 'aiming-shot'
-    aim(function (angle, power) {
-      shoot(angle, power)
-    })
-  })
-
-  setupCameraControls()
+  Bodies.find().observeChanges({
+    added: function (id, body) {
+      console.log('added:', body)
+      var graphics = getGraphicsFromBody(body)
+      stage.addChild(graphics)
+    },
+    changed: function (id, body) {
+      if (!body) return
+      var mongoBody = Bodies.findOne(id)
+      var pixiBody = stage.children.filter(function (child) {
+        console.log(child.graphicsData)
+        return child.graphicsData[0].shape.physicsId === mongoBody.physicsId
+      })[0]
+      pixiBody.position = {
+        x: mongoBody.position[0],
+        y: mongoBody.position[1]
+      }
+    }
+  })  
 
   Turns.find().observeChanges({
     added: function (id, turn) {
-      ui.state = 'rendering'
-      ui.lastTurn = turn.time
-      ui.framesToRender = ui.framesToRender.concat(turn.frames)
+      Game.state = 'rendering'
+      Game.lastTurn = turn.time
     }
   })
+
+  requestAnimationFrame(render)
 }
 
-function render (now) {
-  var frame = ui.framesToRender[0]
-
-  if (!frame || !Characters.findOne({ userId: localStorage.userId })) {
-    requestAnimationFrame(render)
-    return
+function getGraphicsFromBody (body) {
+  var pixiBody
+  var shape = body.shapes[0]
+  if (shape.type === 4) {
+    pixiBody = new pixi.Rectangle(0, 0, renderer.view.width, 1)
+  } else if (shape.type === 1) {
+    pixiBody = new pixi.Circle(-shape.radius / 2, -shape.radius / 2, shape.radius)
+  } else if (shape.type === 32) {
+    pixiBody = new pixi.Rectangle(-shape.width / 2, -shape.height / 2, body.shapes[0].width, body.shapes[0].height)
+  } else if (shape.vertices) {
+    pixiBody = new pixi.Polygon(p2VerticesToPoints(body).vertices)
+  } else {
+    console.log('The heck is this:', body)
   }
+  console.log(pixiBody)
+  pixiBody.physicsId = body.physicsId
 
-  ui.worldContext.clearRect(0, 0, ui.worldCanvas.width, ui.worldCanvas.height)
-  if (frame) {
-    frame.bodies.forEach(function (body) {
-      drawBody(body)
-    })
+  var graphics = new pixi.Graphics()
+  graphics.beginFill(0x000000)
+  graphics.drawShape(pixiBody)
+  graphics.endFill()
+  console.log(typeof pixiBody)
+  if (typeof pixiBody === PIXI.Polygon) console.log('is poly')
+  graphics.position = {
+    x: body.position[0],
+    y: body.position[1]
   }
+  return graphics
+}
 
-  drawUI(frame)
-
-  if (ui.state !== 'action') {
-    if (ui.framesToRender.length > 1) {
-      var idealFrameSpeed = 1000 / 60
-      var lag = (ui.framesToRender.length * idealFrameSpeed) - (ui.lastTurn + Config.playTime - Date.now())
-      var skipFrames = Math.round((lag / idealFrameSpeed) / 5)
-      console.log(skipFrames)
-      if (lag > 0) ui.framesToRender.splice(0, skipFrames > 0 ? skipFrames : 1)
-      else ui.framesToRender.shift()
-    } else {
-      ui.state = 'action'
-    }
+function updateGraphicsFromBody (graphics, body) {
+  if (body.shapes[0].type === 4) return
+  graphics.position = {
+    x: body.position[0],
+    y: body.position[1]
   }
+}
+
+function render () {
+  renderer.render(stage)
+
+  // var frame = ui.framesToRender[0]
+
+  // if (!frame || !Characters.findOne({ userId: localStorage.userId })) {
+  //   requestAnimationFrame(render)
+  //   return
+  // }
+
+  // ui.worldContext.clearRect(0, 0, ui.worldCanvas.width, ui.worldCanvas.height)
+  // if (frame) {
+  //   frame.bodies.forEach(function (body) {
+  //     drawBody(body)
+  //   })
+  // }
+
+  // drawUI(frame)
+
+  // if (ui.state !== 'action') {
+  //   if (ui.framesToRender.length > 1) {
+  //     var idealFrameSpeed = 1000 / 60
+  //     var lag = (ui.framesToRender.length * idealFrameSpeed) - (ui.lastTurn + Config.playTime - Date.now())
+  //     var skipFrames = Math.round((lag / idealFrameSpeed) / 5)
+  //     console.log(skipFrames)
+  //     if (lag > 0) ui.framesToRender.splice(0, skipFrames > 0 ? skipFrames : 1)
+  //     else ui.framesToRender.shift()
+  //   } else {
+  //     ui.state = 'action'
+  //   }
+  // }
   requestAnimationFrame(render)
 }
 
@@ -143,9 +195,29 @@ function scaleToCamera (position) {
   return [x, y]
 }
 
+function p2VerticesToPoints (p2Body) {
+  var lowX = p2Body.shapes[0].vertices[0][0]
+  var lowY = p2Body.shapes[0].vertices[0][1]
+  var highX = p2Body.shapes[0].vertices[0][0]
+  var highY = p2Body.shapes[0].vertices[0][1]
+  var vertices = p2Body.shapes[0].vertices.map(function (vertex) {
+    if (vertex[0] < lowX) lowX = vertex[0]
+    if (vertex[1] < lowY) lowY = vertex[1]
+    if (vertex[0] > highX) highX = vertex[0]
+    if (vertex[0] > highY) highY = vertex[1]
+    return new pixi.Point(vertex[0], vertex[1])
+  })
+  var pixiObject = {
+    width: highX - lowX,
+    height: highY - lowY,
+    vertices: vertices
+  }
+  return pixiObject
+}
+
 function setupCameraControls () {
-  plugins.hammer.off('panstart pan panend')
-  plugins.hammer.on('pan', function (event) {
+  hammer.off('panstart pan panend')
+  hammer.on('pan', function (event) {
     camera.x += event.velocityX * (15 / camera.zoom)
     camera.y -= event.velocityY * (15 / camera.zoom)
   })
@@ -274,7 +346,7 @@ function drawPlayerMarker (position) {
 }
 
 function aim (callback) {
-  plugins.hammer.off('panstart pan panend')
+  hammer.off('panstart pan panend')
   // Start listening for the start of a mouse/finger drag
   /*
   * We're calling hammer.on three times here, to listen for three different types of events; 'panstart'
@@ -284,14 +356,14 @@ function aim (callback) {
   * to. Hammer will continue to listen and run these functions until we call hammer.off('pan') for each event 
   * to tell it to stop.
   */
-  plugins.hammer.on('panstart', function (event) {
+  hammer.on('panstart', function (event) {
     // HammerJS tells us where the user started dragging relative to the page, not the canvas - translate here
     // We grab the position at the start of the drag and remember it to draw a nice arrow from
     var center = {
       x: event.center.x - ui.uiCanvas.getBoundingClientRect().left,
       y: event.center.y - ui.uiCanvas.getBoundingClientRect().top
     }
-    plugins.hammer.on('pan', function (event) {
+    hammer.on('pan', function (event) {
       // The distance of the drag is measured in pixels, so we have to standardise it before
       // translating it into the 'power' of our shot. You might want to console.log out event.angle
       // here to see how HammerJS gives us angles.
@@ -304,10 +376,10 @@ function aim (callback) {
     })
   })
   
-  plugins.hammer.on('panend', function (event) {
+  hammer.on('panend', function (event) {
     var power = translateDistanceToPower(event.distance)
     if (power <= 10) return
-    plugins.hammer.off('panstart pan panend')
+    hammer.off('panstart pan panend')
     setupCameraControls()
     // The player has stopped dragging, let loose!
     callback(event.angle, power)
@@ -340,7 +412,7 @@ function shoot (angle, power) {
 
 function translateDistanceToPower (distance) {
   // Divide the height of the canvas by the distance of our drag - we'll set a 'power limit' of 50% screen height
-  var power = distance / ui.worldCanvas.height
+  var power = distance / renderer.height
   if (power > 0.25) power = 0.25
   // The maths are easier if our 'max power' is 100
   power = power * 400

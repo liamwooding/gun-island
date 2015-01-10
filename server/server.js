@@ -6,6 +6,9 @@ Meteor.publish('GameState', function () {
 Meteor.publish('Characters', function () {
   return Characters.find()
 })
+Meteor.publish('Bodies', function () {
+  return Bodies.find()
+})
 Meteor.publish('Turns', function () {
   return Turns.find({}, {
     sort: { number: -1 },
@@ -18,6 +21,7 @@ var pause = true
 var tick = 0
 var explosions = []
 var framesToPush = []
+var lastTurn
 
 // Set up our materials
 var projectileMaterial = new p2.Material()
@@ -33,6 +37,7 @@ Meteor.startup(function () {
   Characters.remove({})
   GameState.remove({})
   Turns.remove({})
+  Bodies.remove({})
 
   Meteor.methods({
     addPlayer: function (userId) {
@@ -88,20 +93,32 @@ Meteor.startup(function () {
   groundBody.addShape(groundShape)
   world.addBody(groundBody)
 
+  world.on('impact', function (impact) {
+    var impactedProjectile
+    if (impact.bodyA.data && impact.bodyA.data.type === 'projectile') impactedProjectile = impact.bodyA
+    if (impact.bodyB.data && impact.bodyB.data.type === 'projectile') impactedProjectile = impact.bodyB
+    
+    if (impactedProjectile) {
+      impactProjectile(impactedProjectile, 40)
+    }
+  })
+
   genTerrain()
 
   pause = false
-  tickPhysics()
+  tickPhysics(true)
 })
 
 function tickPhysics (newTurn) {
   if (Characters.find().count() === 0) {
     Meteor.setTimeout(function () {
-      tickPhysics()
+      tickPhysics(true)
     }, 1000)
     return
   }
+  console.log('alright')
   if (newTurn === true) {
+    lastTurn = Date.now()
     var turnNumber = Turns.find().count()
     Characters.find().forEach(function (character) {
       if (character.lastTurn && character.lastTurn.number === turnNumber) {
@@ -115,35 +132,31 @@ function tickPhysics (newTurn) {
   }
   tick++
   world.step(0.017)
+
   world.bodies.forEach(function (body) {
     if (body.data && body.data.type === 'explosion') {
       body.data.size += body.data.size * 0.4
       if (body.data.size > body.data.maxSize) world.removeBody(body)
     }
-  })
-  var bodies = world.bodies.map(function (body) {
-    return {
-      id: body.id,
+    var bodyObject = {
+      physicsId: body.id,
       position: body.position,
       shapes: body.shapes,
-      shapeOffsets: body.shapeOffsets,
       data: body.data
     }
+
+    var mongoBody = Bodies.findOne({ physicsId: body.id })
+    if (mongoBody) Bodies.update(mongoBody, bodyObject)
+    else Bodies.insert(bodyObject)
   })
-  var frame = EJSON.clone({
-    bodies: bodies,
-    explosions: explosions,
-    tick: tick
-  })
-  framesToPush.push(frame)
-  if (framesToPush.length >= Config.playTime / 16.7) {
+  console.log(Date.now(), lastTurn + Config.playTime)
+  if (Date.now() >= lastTurn + Config.playTime) {
+    console.log('done')
     Turns.insert({
-      frames: framesToPush,
-      number: Turns.find().count() + 1,
-      time: Date.now()
+      number: Turns.find().count() + 1
     })
     pause = true
-    framesToPush = []
+    lastTurn = Date.now()
     Meteor.setTimeout(function () {
       pause = false
       tickPhysics(true)
@@ -157,7 +170,7 @@ function makeCharacter (userId) {
   // Return an object that describes our new character
   var characterBody = new p2.Body({
     mass: 5,
-    position: [ 100 + (Math.random() * 500), 200 ],
+    position: [ 100 + (Math.random() * 500), 500 ],
     fixedRotation: true
   })
 
@@ -204,22 +217,13 @@ function shoot (bodyId, angle, power) {
   projectileShape.material = projectileMaterial
   projectileBody.addShape(projectileShape)
   projectileBody.data = {
+    type: 'projectile',
     shooterId: bodyId
   }
 
   world.addBody(projectileBody)
   projectileBody.velocity = [player.velocity[0] + (stepX * shootCfg.velocityFactor), player.velocity[1] + (-stepY * shootCfg.velocityFactor)]
   player.velocity = [player.velocity[0] - (stepX * shootCfg.kickBackFactor), player.velocity[1] + (stepY * shootCfg.kickBackFactor)]
-
-  world.on('impact', function (impact) {
-    var impactedProjectile
-    if (impact.bodyA.id === projectileBody.id) impactedProjectile = impact.bodyA
-    if (impact.bodyB.id === projectileBody.id) impactedProjectile = impact.bodyB
-    
-    if (impactedProjectile) {
-      impactProjectile(impactedProjectile, 40)
-    }
-  })
 }
 
 function impactProjectile (projectile, explosionSize) {
@@ -323,7 +327,7 @@ function genTerrain () {
     })
     islandBody.fromPolygon(island)
     world.addBody(islandBody)
-    console.log(islandBody)
+    //console.log(islandBody)
   })
 
   // var islandBody = new p2.Body({
