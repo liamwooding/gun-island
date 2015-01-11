@@ -8,6 +8,7 @@ player = null
 
 Game = {
   state: null,
+  shotsFired: 0,
   framesToRender: [],
   lastTurn: null,
   aimArrow: null,
@@ -86,7 +87,6 @@ Template.game.rendered = function () {
 
   Bodies.find().observeChanges({
     added: function (id, body) {
-      console.log('added:', body)
       var playerGraphics = getGraphicsFromBody(body)
       if (body.data && body.data.userId === localStorage.userId) player = playerGraphics
       world.addChild(playerGraphics)
@@ -168,6 +168,7 @@ function startTurn () {
 
 function endTurn () {
   $('#turn-timer').remove()
+  Game.shotsFired = 0
 }
 
 function render () {
@@ -175,10 +176,6 @@ function render () {
     x: (renderer.view.width / 2 - player.position.x) * world.scale.x + (renderer.view.width/2),
     y: (renderer.view.height / 2 - player.position.y) * world.scale.y + (renderer.view.height/2)
   }
-  // if (player) world.position = {
-  //   x: (renderer.view.width - player.position.x) - (renderer.view.width * world.scale.x / 2),
-  //   y: (renderer.view.height - player.position.y) -  (renderer.view.height * world.scale.y / 2)
-  // }
   renderer.render(stage)
   requestAnimationFrame(render)
 }
@@ -251,27 +248,20 @@ function aim (callback) {
   })
 }
 
-function jump (angle, power) {
-  $('.action-buttons').hide()
-  $('.action-buttons .active').removeClass('active')
-
-  Meteor.call('declareAction', localStorage.userId, {
-    action: 'jump',
-    angle: angle,
-    power: power
-  })
-}
-
 function shoot (angle, power) {
-  $('.action-buttons').hide()
-  $('.action-buttons .active').removeClass('active')
+  Game.shotsFired++
+  console.log(Game.shotsFired)
+  var radians = angle * Math.PI / 180
+  player.moveTo(player.position)
+  player.lineTo(player.position.x + (power * Math.cos(radians) * 2), renderer.view.height - player.position.y - (power * Math.sin(radians) * 2))
 
-  console.log('shooting')
   Meteor.call('declareAction', localStorage.userId, {
     action: 'shoot',
     angle: angle,
-    power: power
+    power: power,
+    shotsFired: Game.shotsFired
   })
+  if (Game.shotsFired < Config.actions.shotsPerTurn) aim(shoot)
 }
 
 function updateArrow (center, angle, power) {

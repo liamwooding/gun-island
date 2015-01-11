@@ -43,17 +43,21 @@ Meteor.startup(function () {
       makeCharacter(userId)
     },
     declareAction: function (userId, action) {
+      var charAction = {
+        'lastTurn.number': Turns.find().count(),
+        'lastTurn.shotsFired': action.shotsFired
+      }
+      charAction['lastTurn.shot'+ action.shotsFired] = {
+        angle: action.angle,
+        power: action.power
+      }
       Characters.update({ userId: userId }, {
-        $set: {
-          lastTurn: {
-            number: Turns.find().count(),
-            action: action.action,
-            angle: action.angle,
-            power: action.power
-          }
-        }
+        $set: charAction
       })
-      if (Characters.find({ 'lastTurn.number': Turns.find().count() }).count() === Characters.find().count()) {
+      if (Characters.find({
+        'lastTurn.number': Turns.find().count(),
+        'lastTurn.shotsFired': Config.actions.shotsPerTurn
+      }).count() === Characters.find().count()) {
         console.log('cool')
         Turns.insert({
           number: Turns.find().count() + 1,
@@ -84,7 +88,9 @@ Meteor.startup(function () {
 
 
   // We'll start with a world
-  world = new p2.World()
+  world = new p2.World({
+    gravity: [ 0, 0 ]
+  })
   //world.sleepMode = p2.World.BODY_SLEEPING
 
   world.addContactMaterial(projectileTerrainContactMaterial)
@@ -128,13 +134,11 @@ function tickPhysics (newTurn) {
   if (newTurn === true) {
     lastTurnTime = Date.now()
     var turnNumber = Turns.find().count()
-    Characters.find().forEach(function (character) {
-      if (character.lastTurn && character.lastTurn.number === turnNumber - 1) {
-        if (character.lastTurn.action === 'jump') {
-          jump(character.physicsId, character.lastTurn.angle, character.lastTurn.power)
-        } else if (character.lastTurn.action === 'shoot') {
-          shoot(character.physicsId, character.lastTurn.angle, character.lastTurn.power)
-        }
+    Characters.find().forEach(function (char) {
+      if (char.lastTurn && char.lastTurn.number === turnNumber - 1) {
+        console.log(char.lastTurn)
+        if (char.lastTurn.shot1) shoot(char.physicsId, char.lastTurn.shot1.angle, char.lastTurn.shot1.power)
+        if (char.lastTurn.shot2) shoot(char.physicsId, char.lastTurn.shot2.angle, char.lastTurn.shot2.power)
       }
     })
   }

@@ -7,10 +7,11 @@ Config = {
   turnTime: 10000,
   playTime: 2000,
   actions: {
+    shotsPerTurn: 2,
     shoot: {
       bulletMass: 0.01,
       velocityFactor: 2.5,
-      kickBackFactor: 0.7,
+      kickBackFactor: 1.5,
       explosionForce: 10
     },
     jump: {
