@@ -155,6 +155,11 @@ function getGraphicsFromBody (body) {
 
 function startTurn () {
   console.log('turn starts')
+  $('#turn-timer').remove()
+  $('body').append('<div id=turn-timer>')
+  setTimeout(function () {
+    $('#turn-timer').addClass('active')
+  }, 15)
   aim(shoot)
 }
 

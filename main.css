@@ -18,73 +18,19 @@ canvas {
   max-width: 100%;
   max-height: 100%;
 }
-canvas#world {
-  /*
-    So, p2.js treats coordinates 0,0 as the bottom left corner, while canvas treats 0,0 as the top left corner.
-    We could reconcile this by flipping every Y coordinate in our javascript, but I'm just gonna ignore it and
-    flip the entire screen upside down; this is an awful hack, and I am unrepentant.
-  */
-  -moz-transform: scaleY(-1);
-  -o-transform: scaleY(-1);
-  -webkit-transform: scaleY(-1);
-  transform: scaleY(-1);
-  filter: FlipV;
-  -ms-filter: "FlipV";
-  z-index: 1;
-  background-color: #88CCE7;
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  width: 100%;
-  height: 100%;
-}
-canvas#uiCanvas {
-  z-index: 2;
-  background-color: transparent;
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  width: 100%;
-  height: 100%;
-}
-.messages {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
-.action-buttons {
+#turn-timer {
+  position: fixed;
   z-index: 3;
-  position: absolute;
-  width: 0;
-  height: 0;
+  width: 100%;
+  top: 0;
+  left: 0;
+  height: 3%;
+  background-color: black;
+  -webkit-transition: width 4s linear;
+  -moz-transition: width 4s linear;
+  -o-transition: width 4s linear;
+  transition: width 4s linear;
 }
-.action-buttons button {
-  font-size: 0;
-  border: none;
-  border-radius: 4px;
-}
-.action-buttons .jump {
-  position: absolute;
-  top: -35px;
-  left: 10px;
-  width: 30px;
-  height: 30px;
-  background: transparent url(jump.png) center center / 100% auto no-repeat;
-}
-.action-buttons .shoot {
-  position: absolute;
-  top: -50px;
-  left: -50px;
-  width: 100px;
-  height: 100px;
-  border-radius: 50px;
-  background: rgba(0, 0, 0, 0.7);
-}
-.action-buttons .active {
-  background: rgba(0, 0, 0, 0.1);
+#turn-timer.active {
+  width: 0%;
 }
