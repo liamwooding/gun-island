@@ -260,19 +260,20 @@ function impactProjectile (projectile, explosionSize) {
     }
   })
 
-  var explosionBody = new p2.Body({
-    type: p2.Body.STATIC,
-    mass: 1,
-    position: projectile.position
-  })
-  var explosionShape = new p2.Particle()
-  explosionBody.addShape(explosionShape)
-  explosionBody.data = {
-    type: 'explosion',
-    size: 1,
-    maxSize: explosionSize
-  }
-  world.addBody(explosionBody)
+  // var explosionBody = new p2.Body({
+  //   type: p2.Body.STATIC,
+  //   mass: 1,
+  //   position: projectile.position
+  // })
+  // var explosionShape = new p2.Particle()
+  // explosionBody.addShape(explosionShape)
+  // explosionBody.data = {
+  //   type: 'explosion',
+  //   size: 1,
+  //   maxSize: explosionSize
+  // }
+  // world.addBody(explosionBody)
+  Bodies.remove({ physicsId: projectile.id })
   world.removeBody(projectile)
 }
 
@@ -281,14 +282,14 @@ function dampVelocity (body, maxVelocity) {
   var vy = body.velocity[1]
   var currVelocity = Math.abs(vx + vy)
 
-  if (Math.abs(currVelocity) > maxVelocity + 1) {
+  if (Math.abs(currVelocity) > maxVelocity) {
     var angle = Math.atan2(vy, vx)
     var diff = currVelocity - maxVelocity
 
-    newVx = Math.cos(angle) * Config.dampingFactor
-    newVy = Math.sin(angle) * Config.dampingFactor
+    forceVx = Math.cos(angle) * Config.dampingFactor
+    forceVy = Math.sin(angle) * Config.dampingFactor
 
-    body.applyForce([ -newVx, -newVy ], body.position)
+    body.applyForce([ -forceVx, -forceVx ], body.position)
   }
 }
 

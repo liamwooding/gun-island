@@ -87,9 +87,10 @@ Template.game.rendered = function () {
 
   Bodies.find().observeChanges({
     added: function (id, body) {
-      var playerGraphics = getGraphicsFromBody(body)
-      if (body.data && body.data.userId === localStorage.userId) player = playerGraphics
-      world.addChild(playerGraphics)
+      var bodyGraphics = getGraphicsFromBody(body)
+      if (body.data && body.data.userId === localStorage.userId) player = bodyGraphics
+        bodyGraphics.mongoId = id
+      world.addChild(bodyGraphics)
     },
     changed: function (id, fields) {
       if (!fields) return
@@ -101,6 +102,14 @@ Template.game.rendered = function () {
         x: body.position[0],
         y: body.position[1]
       }
+    },
+    removed: function (id) {
+      console.log(id)
+      var pixiBody = world.children.filter(function (child) {
+        return child.mongoId === id
+      })[0]
+      console.log(pixiBody)
+      world.removeChild(pixiBody)
     }
   })
 
@@ -143,6 +152,7 @@ function getGraphicsFromBody (body) {
     console.warn('The heck is this:', shape.type)
   }
   pixiBody.physicsId = body.physicsId
+  pixiBody.mongoId = body._id
 
   var graphics = new pixi.Graphics()
   graphics.beginFill(0x000000)
