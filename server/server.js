@@ -120,6 +120,11 @@ Meteor.startup(function () {
 
   genTerrain()
 
+  Turns.insert({
+    number: 1,
+    state: 'play'
+  })
+
   pause = false
   tickPhysics(true)
 })
@@ -149,6 +154,9 @@ function tickPhysics (newTurn) {
     if (body.data && body.data.type === 'explosion') {
       body.data.size += body.data.size * 0.4
       if (body.data.size > body.data.maxSize) world.removeBody(body)
+    }
+    if (body.data && body.data.userId) {
+      dampVelocity(body, Config.maxVelocity)
     }
     var bodyObject = {
       physicsId: body.id,
@@ -230,8 +238,9 @@ function shoot (bodyId, angle, power) {
   }
 
   world.addBody(projectileBody)
-  projectileBody.velocity = [player.velocity[0] + (stepX * shootCfg.velocityFactor), player.velocity[1] + (-stepY * shootCfg.velocityFactor)]
-  player.velocity = [player.velocity[0] - (stepX * shootCfg.kickBackFactor), player.velocity[1] + (stepY * shootCfg.kickBackFactor)]
+  projectileBody.velocity = [ stepX * shootCfg.velocityFactor, -stepY * shootCfg.velocityFactor ]
+  //console.log(player)
+  player.applyForce([ -stepX * shootCfg.kickBackFactor, stepY * shootCfg.kickBackFactor ], player.position )
 }
 
 function impactProjectile (projectile, explosionSize) {
@@ -247,7 +256,7 @@ function impactProjectile (projectile, explosionSize) {
     if (distance < explosionSize) {
       var stepX = (explosionSize * Math.cos(radians)) / (Math.sqrt(distance)) * Config.actions.shoot.explosionForce
       var stepY = (explosionSize * Math.sin(radians)) / (Math.sqrt(distance)) * Config.actions.shoot.explosionForce
-      charBody.velocity = [ charBody.velocity[0] + stepX, charBody.velocity[1] + stepY ]
+      charBody.applyForce([ charBody.velocity[0] + stepX, charBody.velocity[1] + stepY ], charBody.position)
     }
   })
 
@@ -265,6 +274,22 @@ function impactProjectile (projectile, explosionSize) {
   }
   world.addBody(explosionBody)
   world.removeBody(projectile)
+}
+
+function dampVelocity (body, maxVelocity) {
+  var vx = body.velocity[0]
+  var vy = body.velocity[1]
+  var currVelocity = Math.abs(vx + vy)
+
+  if (Math.abs(currVelocity) > maxVelocity + 1) {
+    var angle = Math.atan2(vy, vx)
+    var diff = currVelocity - maxVelocity
+
+    newVx = Math.cos(angle) * Config.dampingFactor
+    newVy = Math.sin(angle) * Config.dampingFactor
+
+    body.applyForce([ -newVx, -newVy ], body.position)
+  }
 }
 
 function genTerrain () {
@@ -308,32 +333,39 @@ function genTerrain () {
   // terrainVertices.push(bottomLeftCorner)
 
   var islands = [
-    [
-      [ 200, 300 ],
-      [ 215, 350 ],
-      [ 400, 310 ],
-      [ 250, 280 ]
-    ],
-    [
-      [ 500, 500 ],
-      [ 500, 570 ],
-      [ 760, 600 ],
-      [ 820, 450 ]
-    ],
-    [
-      [ 610, 250 ],
-      [ 730, 250 ],
-      [ 730, 310 ],
-      [ 770, 320 ],
-      [ 860, 250 ]
-    ]
+    {
+      x: 500,
+      y: 400,
+      width: 150,
+      height: 200
+    },
+    {
+      x: 0,
+      y: 400,
+      width: 150,
+      height: 150
+    },
+    {
+      x: 300,
+      y: 800,
+      width: 800,
+      height: 50
+    },
+    {
+      x: 900,
+      y: 500,
+      width: 50,
+      height: 200
+    },
   ]
 
   islands.forEach(function (island) {
     var islandBody = new p2.Body({
-      type: p2.Body.STATIC
+      type: p2.Body.STATIC,
+      position: [ island.x, island.y ]
     })
-    islandBody.fromPolygon(island)
+    islandShape = new p2.Rectangle(island.width, island.height)
+    islandBody.addShape(islandShape)
     world.addBody(islandBody)
     //console.log(islandBody)
   })

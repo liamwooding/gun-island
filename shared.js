@@ -6,13 +6,15 @@ Bodies = new Mongo.Collection('Bodies')
 Config = {
   turnTime: 10000,
   playTime: 2000,
+  maxVelocity: 400,
+  dampingFactor: 5000,
   actions: {
     shotsPerTurn: 2,
     shoot: {
       bulletMass: 0.01,
       velocityFactor: 2.5,
-      kickBackFactor: 1.5,
-      explosionForce: 10
+      kickBackFactor: 1000,
+      explosionForce: 10000
     },
     jump: {
       velocityFactor: 1.5
