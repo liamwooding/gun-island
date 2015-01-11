@@ -32,12 +32,6 @@ styles = {
   }
 }
 
-camera = {
-  zoom: 1,
-  x: 0,
-  y: 0
-}
-
 Template.game.rendered = function () {
   stage = new pixi.Stage(0x58A2C4)
   // We add physics objects to the world, then move the "camera" by changing the world's position
@@ -51,13 +45,15 @@ Template.game.rendered = function () {
   })
   document.body.appendChild(renderer.view)
 
+  world.pivot = {
+    x: renderer.view.width / 2,
+    y: renderer.view.height / 2
+  }
+
   // Setup HammerJS, the mouse/touch gesture library we'll use for the controls
   hammer = new Hammer(renderer.view)
   // HammerJS only listens for horizontal drags by default, here we tell it listen for all directions
   hammer.get('pan').set({ direction: Hammer.DIRECTION_ALL })
-
-  //camera.x = 0 - (ui.worldCanvas.width / 2)
-  //camera.y = 0 - (ui.worldCanvas.height / 2)
 
   // resize canvas when the browser is resized
   window.addEventListener('resize', function () {
@@ -163,11 +159,15 @@ function startTurn () {
 }
 
 function render () {
-  renderer.render(stage)
   if (player) world.position = {
-    x: renderer.view.width / 2 - player.position.x - (player.width / 2),
-    y: renderer.view.height / 2 - player.position.y - (player.height / 2)
+    x: (renderer.view.width / 2 - player.position.x) * world.scale.x + (renderer.view.width/2),
+    y: (renderer.view.height / 2 - player.position.y) * world.scale.y + (renderer.view.height/2)
   }
+  // if (player) world.position = {
+  //   x: (renderer.view.width - player.position.x) - (renderer.view.width * world.scale.x / 2),
+  //   y: (renderer.view.height - player.position.y) -  (renderer.view.height * world.scale.y / 2)
+  // }
+  renderer.render(stage)
   requestAnimationFrame(render)
 }
 

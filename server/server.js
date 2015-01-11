@@ -190,16 +190,6 @@ function makeCharacter (userId) {
   Characters.insert(characterData)
 }
 
-function jump (bodyId, angle, power) {
-  var player = world.getBodyById(bodyId)
-  player.wakeUp()
-  var radians = angle * Math.PI / 180
-  var stepX = (power * Math.cos(radians)) * Config.actions.jump.velocityFactor
-  var stepY = (power * Math.sin(radians)) * Config.actions.jump.velocityFactor
-  player.velocity = [player.velocity[0] + stepX, player.velocity[1] - stepY]
-  console.log(player.velocity)
-}
-
 function shoot (bodyId, angle, power) {
   var player = world.getBodyById(bodyId)
   var shootCfg = Config.actions.shoot
@@ -230,7 +220,7 @@ function shoot (bodyId, angle, power) {
 
 function impactProjectile (projectile, explosionSize) {
   Characters.find().forEach(function (char) {
-    var charBody = world.getBodyById(char.bodyId)
+    var charBody = world.getBodyById(char.physicsId)
     var relativePosition = [
       charBody.position[0] - projectile.position[0],
       charBody.position[1] - projectile.position[1]
