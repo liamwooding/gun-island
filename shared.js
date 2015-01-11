@@ -8,6 +8,16 @@ Config = {
   playTime: 2000,
   maxVelocity: 400,
   dampingFactor: 5000,
+  positions: [
+    [ 100, 400 ],
+    [ 700, 400 ],
+    [ 400, 700 ],
+    [ 400, 100 ],
+    [ 100, 100 ],
+    [ 700, 700 ],
+    [ 100, 700 ],
+    [ 700, 100 ]
+  ],
   actions: {
     shotsPerTurn: 2,
     shoot: {
@@ -15,9 +25,6 @@ Config = {
       velocityFactor: 2.5,
       kickBackFactor: 1000,
       explosionForce: 10000
-    },
-    jump: {
-      velocityFactor: 1.5
     }
   },
   styles: {
@@ -32,6 +39,9 @@ Config = {
     },
     projectile: {
       fillStyle: '#000000'
+    },
+    bounds: {
+      fillStyle: '#778585'
     }
   }
 }

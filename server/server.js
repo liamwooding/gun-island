@@ -108,15 +108,16 @@ Meteor.startup(function () {
   world.addBody(groundBody)
 
   world.on('impact', function (impact) {
-    var impactedProjectile
-    if (impact.bodyA.data && impact.bodyA.data.type === 'projectile') impactedProjectile = impact.bodyA
-    if (impact.bodyB.data && impact.bodyB.data.type === 'projectile') impactedProjectile = impact.bodyB
+    var impactedProjectile, typeA, typeB
+    if (impact.bodyA.data && impact.bodyA.data.type) typeA = impact.bodyA.data.type
+    if (impact.bodyB.data && impact.bodyB.data.type) typeB = impact.bodyB.data.type
     
-    if (impactedProjectile) {
-      impactProjectile(impactedProjectile, 40)
-    }
-  })
+    if (typeA === 'projectile') impactProjectile(impact.bodyA, 40)
+    if (typeB === 'projectile') impactProjectile(impact.bodyB, 40)
 
+    if (typeA === 'character' && typeB === 'bounds') killCharacter(impact.bodyA)
+    if (typeB === 'character' && typeA === 'bounds') killCharacter(impact.bodyB)
+  })
   genTerrain()
 
   Turns.insert({
@@ -190,7 +191,7 @@ function makeCharacter (userId) {
   // Return an object that describes our new character
   var characterBody = new p2.Body({
     mass: 5,
-    position: [ 100 + (Math.random() * 500), 500 ],
+    position: Config.positions[Characters.find().count()],
     fixedRotation: true
   })
 
@@ -206,10 +207,18 @@ function makeCharacter (userId) {
   characterData = {
     userId: userId,
     health: 100,
-    physicsId: characterBody.id
+    physicsId: characterBody.id,
+    number: Characters.find().count()
   }
 
   Characters.insert(characterData)
+}
+
+function killCharacter (character) {
+  var mongoChar = Characters.findOne({ physicsId: character.id })
+  Characters.update(mongoChar, { $inc: { deaths: 1 } })
+  character.position = Config.positions[mongoChar.number]
+  character.velocity = [ 0, 0 ]
 }
 
 function shoot (bodyId, angle, power) {
@@ -260,41 +269,78 @@ function impactProjectile (projectile, explosionSize) {
 }
 
 function genTerrain () {
-  var obstacles = [
-    {
-      x: 500,
-      y: 400,
-      width: 150,
-      height: 200
-    },
+  // var obstacles = [
+  //   {
+  //     x: 500,
+  //     y: 400,
+  //     width: 150,
+  //     height: 200
+  //   },
+  //   {
+  //     x: 0,
+  //     y: 400,
+  //     width: 150,
+  //     height: 150
+  //   },
+  //   {
+  //     x: 300,
+  //     y: 800,
+  //     width: 800,
+  //     height: 50
+  //   },
+  //   {
+  //     x: 900,
+  //     y: 500,
+  //     width: 50,
+  //     height: 200
+  //   },
+  // ]
+
+  // obstacles.forEach(function (island) {
+  //   var obstacleBody = new p2.Body({
+  //     type: p2.Body.STATIC,
+  //     position: [ island.x, island.y ]
+  //   })
+  //   obstacleShape = new p2.Rectangle(island.width, island.height)
+  //   obstacleBody.addShape(obstacleShape)
+  //   obstacleBody.data = { type: 'obstacle' }
+  //   world.addBody(obstacleBody)
+  // })
+
+  var bounds = [
     {
       x: 0,
       y: 400,
-      width: 150,
-      height: 150
+      width: 10,
+      height: 800
     },
     {
-      x: 300,
+      x: 400,
       y: 800,
       width: 800,
-      height: 50
+      height: 10
     },
     {
-      x: 900,
-      y: 500,
-      width: 50,
-      height: 200
+      x: 800,
+      y: 400,
+      width: 10,
+      height: 800
+    },
+    {
+      x: 400,
+      y: 0,
+      width: 800,
+      height: 10
     },
   ]
-
-  obstacles.forEach(function (island) {
-    var obstacleBody = new p2.Body({
+  bounds.forEach(function (island) {
+    var boundsBody = new p2.Body({
       type: p2.Body.STATIC,
       position: [ island.x, island.y ]
     })
-    obstacleShape = new p2.Rectangle(island.width, island.height)
-    obstacleBody.addShape(obstacleShape)
-    obstacleBody.data = { type: 'obstacle' }
-    world.addBody(obstacleBody)
+    boundsShape = new p2.Rectangle(island.width, island.height)
+    boundsBody.addShape(boundsShape)
+    boundsBody.data = { type: 'bounds' }
+    world.addBody(boundsBody)
   })
 }

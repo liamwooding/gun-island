@@ -36,6 +36,7 @@ Template.game.rendered = function () {
     x: renderer.view.width / 2,
     y: renderer.view.height / 2
   }
+  world.scale.x = world.scale.y = 0.4
 
   // Setup HammerJS, the mouse/touch gesture library we'll use for the controls
   hammer = new Hammer(renderer.view)
