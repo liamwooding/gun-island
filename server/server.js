@@ -90,22 +90,6 @@ Meteor.startup(function () {
   world = new p2.World({
     gravity: [ 0, 0 ]
   })
-  //world.sleepMode = p2.World.BODY_SLEEPING
-
-  world.addContactMaterial(projectileTerrainContactMaterial)
-
-  // Then a floor
-  var groundBody = new p2.Body({
-    mass: 0, // Setting mass to 0 makes this body static
-    position: [0, 50]
-  })
-  var groundShape = new p2.Plane()
-  groundShape.styles = {
-    lineWidth: 1
-  }
-  groundShape.material = terrainMaterial
-  groundBody.addShape(groundShape)
-  world.addBody(groundBody)
 
   world.on('impact', function (impact) {
     var impactedProjectile, typeA, typeB
