@@ -208,7 +208,8 @@ function makeCharacter (userId) {
     userId: userId,
     health: 100,
     physicsId: characterBody.id,
-    number: Characters.find().count()
+    number: Characters.find().count(),
+    deaths: 0
   }
 
   Characters.insert(characterData)
@@ -219,6 +220,7 @@ function killCharacter (character) {
   Characters.update(mongoChar, { $inc: { deaths: 1 } })
   character.position = Config.positions[mongoChar.number]
   character.velocity = [ 0, 0 ]
+  console.log(Config.positions[mongoChar.number])
 }
 
 function shoot (bodyId, angle, power) {
