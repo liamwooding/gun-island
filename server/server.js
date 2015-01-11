@@ -20,6 +20,7 @@ var tick = 0
 var explosions = []
 var framesToPush = []
 var lastTurnTime
+var turnTimeout
 
 // Set up our materials
 var projectileMaterial = new p2.Material()
@@ -52,6 +53,16 @@ Meteor.startup(function () {
           }
         }
       })
+      if (Characters.find({ 'lastTurn.number': Turns.find().count() }).count() === Characters.find().count()) {
+        console.log('cool')
+        Turns.insert({
+          number: Turns.find().count() + 1,
+          state: 'play'
+        })
+        pause = false
+        tickPhysics(true)
+        Meteor.clearTimeout(turnTimeout)
+      }
     }
   })
 
@@ -114,7 +125,6 @@ function tickPhysics (newTurn) {
     }, 1000)
     return
   }
-  console.log('alright')
   if (newTurn === true) {
     lastTurnTime = Date.now()
     var turnNumber = Turns.find().count()
@@ -153,13 +163,15 @@ function tickPhysics (newTurn) {
     lastTurnTime = Date.now()
     var lastTurn = Turns.findOne({ number: Turns.find().count() })
     Turns.update(lastTurn, { $set: { state: 'turn' } })
-    Meteor.setTimeout(function () {
-      Turns.insert({
-        number: Turns.find().count() + 1,
-        state: 'play'
-      })
-      pause = false
-      tickPhysics(true)
+    turnTimeout = Meteor.setTimeout(function () {
+      if (pause) {
+        Turns.insert({
+          number: Turns.find().count() + 1,
+          state: 'play'
+        })
+        pause = false
+        tickPhysics(true)
+      }
     }, Config.turnTime)
   }
   if (!pause) Meteor.setTimeout(tickPhysics, Math.round(1000 / 60))
@@ -309,7 +321,7 @@ function genTerrain () {
       [ 730, 250 ],
       [ 730, 310 ],
       [ 770, 320 ],
-      [ 860, 160 ]
+      [ 860, 250 ]
     ]
   ]
 

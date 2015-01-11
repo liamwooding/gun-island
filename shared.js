@@ -4,7 +4,7 @@ Turns = new Mongo.Collection('Turns')
 Bodies = new Mongo.Collection('Bodies')
 
 Config = {
-  turnTime: 4000,
+  turnTime: 10000,
   playTime: 2000,
   actions: {
     shoot: {

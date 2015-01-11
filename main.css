@@ -26,10 +26,10 @@ canvas {
   left: 0;
   height: 3%;
   background-color: black;
-  -webkit-transition: width 4s linear;
-  -moz-transition: width 4s linear;
-  -o-transition: width 4s linear;
-  transition: width 4s linear;
+  -webkit-transition: width 9.5s linear;
+  -moz-transition: width 9.5s linear;
+  -o-transition: width 9.5s linear;
+  transition: width 9.5s linear;
 }
 #turn-timer.active {
   width: 0%;

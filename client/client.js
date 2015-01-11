@@ -109,12 +109,14 @@ Template.game.rendered = function () {
       console.log('added', id, turn)
       Game.state = turn.state
       Game.lastTurn = turn.time
+      if (Game.state === 'play') endTurn()
     },
     changed: function (id, fields) {
       console.log('changed', id, fields)
       if (!fields) return
       if (fields.state) Game.state = fields.state
       if (Game.state === 'turn') startTurn()
+      if (Game.state === 'play') endTurn()
     }
   })
 
@@ -161,6 +163,11 @@ function startTurn () {
     $('#turn-timer').addClass('active')
   }, 15)
   aim(shoot)
+}
+
+
+function endTurn () {
+  $('#turn-timer').remove()
 }
 
 function render () {
@@ -283,6 +290,7 @@ function p2VerticesToPoints (p2Body) {
   var points = p2Body.shapes[0].vertices.map(function (vertex) {
     return new pixi.Point(vertex[0], vertex[1])
   })
+  console.log(points)
   return points
 }
 
