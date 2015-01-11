@@ -32,7 +32,6 @@ var projectileTerrainContactMaterial = new p2.ContactMaterial(projectileMaterial
 })
 
 Meteor.startup(function () {
-  console.log('starting')
   Characters.remove({})
   GameState.remove({})
   Turns.remove({})
@@ -58,7 +57,7 @@ Meteor.startup(function () {
         'lastTurn.number': Turns.find().count(),
         'lastTurn.shotsFired': Config.actions.shotsPerTurn
       }).count() === Characters.find().count()) {
-        console.log('cool')
+        console.log('Ending turn early')
         Turns.insert({
           number: Turns.find().count() + 1,
           state: 'play'
@@ -137,11 +136,11 @@ function tickPhysics (newTurn) {
     return
   }
   if (newTurn === true) {
+    console.log('Rendering')
     lastTurnTime = Date.now()
     var turnNumber = Turns.find().count()
     Characters.find().forEach(function (char) {
       if (char.lastTurn && char.lastTurn.number === turnNumber - 1) {
-        console.log(char.lastTurn)
         if (char.lastTurn.shot1) shoot(char.physicsId, char.lastTurn.shot1.angle, char.lastTurn.shot1.power)
         if (char.lastTurn.shot2) shoot(char.physicsId, char.lastTurn.shot2.angle, char.lastTurn.shot2.power)
       }
@@ -155,9 +154,6 @@ function tickPhysics (newTurn) {
       body.data.size += body.data.size * 0.4
       if (body.data.size > body.data.maxSize) world.removeBody(body)
     }
-    if (body.data && body.data.userId) {
-      dampVelocity(body, Config.maxVelocity)
-    }
     var bodyObject = {
       physicsId: body.id,
       position: body.position,
@@ -169,7 +165,7 @@ function tickPhysics (newTurn) {
     else Bodies.insert(bodyObject)
   })
   if (Date.now() >= lastTurnTime + Config.playTime) {
-    console.log('done')
+    console.log('Starting new turn')
     
     pause = true
     lastTurnTime = Date.now()
@@ -201,8 +197,10 @@ function makeCharacter (userId) {
   var characterShape = new p2.Rectangle(15, 20)
   characterBody.addShape(characterShape)
   characterBody.data = {
+    type: 'character',
     userId: userId
   }
+  characterBody.damping = 0.9
   world.addBody(characterBody)
 
   characterData = {
@@ -223,13 +221,11 @@ function shoot (bodyId, angle, power) {
   var stepY = (power * Math.sin(radians))
   var startX = Math.cos(radians) * 20
   var startY = Math.sin(radians) * 25
-  console.log(startX, startY)
   var projectileBody = new p2.Body({
     mass: Config.actions.shoot.bulletMass,
     position: [player.position[0] + startX, player.position[1] - startY]
   })
-  var projectileShape = new p2.Circle(3)
-  //projectileShape.type = 'kinematic'
+  var projectileShape = new p2.Circle(2)
   projectileShape.material = projectileMaterial
   projectileBody.addShape(projectileShape)
   projectileBody.data = {
@@ -239,7 +235,6 @@ function shoot (bodyId, angle, power) {
 
   world.addBody(projectileBody)
   projectileBody.velocity = [ stepX * shootCfg.velocityFactor, -stepY * shootCfg.velocityFactor ]
-  //console.log(player)
   player.applyForce([ -stepX * shootCfg.kickBackFactor, stepY * shootCfg.kickBackFactor ], player.position )
 }
 
@@ -260,80 +255,12 @@ function impactProjectile (projectile, explosionSize) {
     }
   })
 
-  // var explosionBody = new p2.Body({
-  //   type: p2.Body.STATIC,
-  //   mass: 1,
-  //   position: projectile.position
-  // })
-  // var explosionShape = new p2.Particle()
-  // explosionBody.addShape(explosionShape)
-  // explosionBody.data = {
-  //   type: 'explosion',
-  //   size: 1,
-  //   maxSize: explosionSize
-  // }
-  // world.addBody(explosionBody)
   Bodies.remove({ physicsId: projectile.id })
   world.removeBody(projectile)
 }
 
-function dampVelocity (body, maxVelocity) {
-  var vx = body.velocity[0]
-  var vy = body.velocity[1]
-  var currVelocity = Math.abs(vx + vy)
-
-  if (Math.abs(currVelocity) > maxVelocity) {
-    var angle = Math.atan2(vy, vx)
-    var diff = currVelocity - maxVelocity
-
-    forceVx = Math.cos(angle) * Config.dampingFactor
-    forceVy = Math.sin(angle) * Config.dampingFactor
-
-    body.applyForce([ -forceVx, -forceVx ], body.position)
-  }
-}
-
 function genTerrain () {
-  // var xPoints = []
-  // var yPoints = []
-  // // Get a number between 5 and 15. This will be the number of angles along our line
-  // var numberOfPoints = Math.round(20 + (Math.random() * 20))
-  // // Loop over this number, generating a number at least as high as 'floor' and as large as 'floor + height'
-  // // These will represent the height of the peaks and valleys of our terrain
-  // for (var i = 0; i < numberOfPoints; i++) {
-  //   var point
-  //   if (i === 0) point = Math.random() * height
-  //   else {
-  //     point = yPoints[i-1] + (Math.random() * variance) - (variance / 2) 
-  //   } 
-  //   yPoints.push(point)
-  // }
-  // // We do something similar again to decide how far apart these points are on the X axis, adding the previous value to
-  // // each new random number so we get an increasing list of numbers with random gaps between them
-  // for (var i = 0; i < numberOfPoints; i++) {
-  //   if (i > 0) var point = xPoints[i - 1] + 10 + (Math.random() * 100)
-  //   else var point = 10 + (Math.random() * 100)
-  //   xPoints.push(point)
-  // }
-  // // However, we now have a range of points on the X axis that may be larger than the width of our screen, so we squash them down
-  // // Get the last point and divide it by the screen width, then multiply all points by this number
-  // var squashFactor = 600 / (xPoints[xPoints.length - 1])
-  
-  // // Array.map() is a neato functional way of turning an array into another array
-  // // We're looping through our array and making a new array of vector objects
-  // var terrainVertices = xPoints.map(function (xPoint, i) {
-  //   return [
-  //     Math.round(xPoint * squashFactor),
-  //     Math.round(yPoints[i])
-  //   ]
-  // })
-  // // We'll stretch the shape out way beyond the edges of the screen to be safe
-  // var bottomRightCorner = [600, -400]
-  // var bottomLeftCorner = [0, -400]
-  // terrainVertices.push(bottomRightCorner)
-  // terrainVertices.push(bottomLeftCorner)
-
-  var islands = [
+  var obstacles = [
     {
       x: 500,
       y: 400,
@@ -360,21 +287,14 @@ function genTerrain () {
     },
   ]
 
-  islands.forEach(function (island) {
-    var islandBody = new p2.Body({
+  obstacles.forEach(function (island) {
+    var obstacleBody = new p2.Body({
       type: p2.Body.STATIC,
       position: [ island.x, island.y ]
     })
-    islandShape = new p2.Rectangle(island.width, island.height)
-    islandBody.addShape(islandShape)
-    world.addBody(islandBody)
-    //console.log(islandBody)
+    obstacleShape = new p2.Rectangle(island.width, island.height)
+    obstacleBody.addShape(obstacleShape)
+    obstacleBody.data = { type: 'obstacle' }
+    world.addBody(obstacleBody)
   })
-
-  // var islandBody = new p2.Body({
-  //   position: [200, 0]
-  // })
-  // islandBody.fromPolygon(terrainVertices)
-
-  // world.addBody(islandBody)
 }

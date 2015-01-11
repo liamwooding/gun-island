@@ -19,22 +19,8 @@ Game = {
   uiContext: null
 }
 
-styles = {
-  colours: {
-    sky: '#58A2C4',
-    ground: '#FFFFFF',
-    player1: '#CB461D',
-    player2: '#10326F',
-    ball1: '#AE1E3B',
-    ball2: '#AE1E3B',
-    explosion: '#F1D432',
-    jumpArrow: '#FFFFFF',
-    shotArrow: '#AE1E3B'
-  }
-}
-
 Template.game.rendered = function () {
-  stage = new pixi.Stage(0x58A2C4)
+  stage = new pixi.Stage(parseInt(Config.styles.ground.fillStyle.substring(1), 16))
   // We add physics objects to the world, then move the "camera" by changing the world's position
   world = new pixi.DisplayObjectContainer()
   ui = new pixi.DisplayObjectContainer()
@@ -155,7 +141,9 @@ function getGraphicsFromBody (body) {
   pixiBody.mongoId = body._id
 
   var graphics = new pixi.Graphics()
-  graphics.beginFill(0x000000)
+  if (body.data && body.data.type) {
+    graphics.beginFill(parseInt(Config.styles[body.data.type].fillStyle.substring(1), 16))
+  } else graphics.beginFill(0xFFFFFF)
   graphics.drawShape(pixiBody)
   graphics.endFill()
   graphics.position = {

@@ -19,6 +19,20 @@ Config = {
     jump: {
       velocityFactor: 1.5
     }
+  },
+  styles: {
+    obstacle: {
+      fillStyle: '#778585'
+    },
+    ground: {
+      fillStyle: '#F2D5A5'
+    },
+    character: {
+      fillStyle: '#6E513B'
+    },
+    projectile: {
+      fillStyle: '#000000'
+    }
   }
 }
 
