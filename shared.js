@@ -39,7 +39,9 @@ Config = {
       fillStyle: '#6E513B'
     },
     projectile: {
-      fillStyle: '#000000'
+      fillStyle: '#000000',
+      lineWidth: 4,
+      lineColor: '#000000'
     },
     bounds: {
       fillStyle: '#778585'

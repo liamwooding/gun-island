@@ -141,7 +141,10 @@ function getGraphicsFromBody (body) {
   var graphics = new pixi.Graphics()
   if (body.data && body.data.type) {
     graphics.beginFill(parseInt(Config.styles[body.data.type].fillStyle.substring(1), 16))
+    graphics.lineWidth = Config.styles[body.data.type].lineWidth || 0
+    graphics.lineColor = Config.styles[body.data.type].lineColor || 0xFFFFFF
   } else graphics.beginFill(0xFFFFFF)
+
   graphics.drawShape(pixiBody)
   graphics.endFill()
   graphics.position = {
