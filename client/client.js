@@ -36,7 +36,7 @@ Template.game.rendered = function () {
     x: renderer.view.width / 2,
     y: renderer.view.height / 2
   }
-  world.scale.x = world.scale.y = 0.4
+  world.scale.x = world.scale.y = 0.9
 
   // Setup HammerJS, the mouse/touch gesture library we'll use for the controls
   hammer = new Hammer(renderer.view)
@@ -106,7 +106,7 @@ Template.game.rendered = function () {
       var pixiBody = world.children.filter(function (child) {
         return child.graphicsData[0].shape.physicsId === position.physicsId
       })[0]
-      pixiBody.position = {
+      if (pixiBody) pixiBody.position = {
         x: position.x,
         y: position.y
       }
@@ -125,7 +125,7 @@ function getGraphicsFromBody (body) {
   if (shape.type === 4) {
     pixiBody = new pixi.Rectangle(-10000, 0, renderer.view.width + 20000, 1)
   } else if (shape.type === 1) {
-    pixiBody = new pixi.Circle(-shape.radius / 2, -shape.radius / 2, shape.radius)
+    pixiBody = new pixi.Circle(0, 0, shape.radius)
   } else if (shape.type === 32) {
     pixiBody = new pixi.Rectangle(-shape.width / 2, -shape.height / 2, body.shapes[0].width, body.shapes[0].height)
   } else if (shape.type === 2 && body.data.type === 'explosion') {

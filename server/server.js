@@ -107,8 +107,8 @@ Meteor.startup(function () {
     if (typeA === 'projectile') impactProjectile(impact.bodyA, 40)
     if (typeB === 'projectile') impactProjectile(impact.bodyB, 40)
 
-    if (typeA === 'character' && typeB === 'bounds') killCharacter(impact.bodyA)
-    if (typeB === 'character' && typeA === 'bounds') killCharacter(impact.bodyB)
+    if (typeA === 'character' && typeB === 'projectile') killCharacter(impact.bodyA)
+    if (typeB === 'character' && typeA === 'projectile') killCharacter(impact.bodyB)
   })
   genTerrain()
 
@@ -150,7 +150,8 @@ function tickPhysics (newTurn) {
     return {
       physicsId: body.id,
       x: body.position[0],
-      y: body.position[1]
+      y: body.position[1],
+      angularVelocity: body.angularVelocity
     }
   })
 
@@ -189,7 +190,7 @@ function makeCharacter (userId) {
     fixedRotation: true
   })
 
-  var characterShape = new p2.Rectangle(15, 20)
+  var characterShape = new p2.Circle(15)
   characterBody.addShape(characterShape)
   characterBody.data = {
     type: 'character',
@@ -212,7 +213,7 @@ function makeCharacter (userId) {
 function killCharacter (character) {
   var mongoChar = Characters.findOne({ physicsId: character.id })
   Characters.update(mongoChar, { $inc: { deaths: 1 } })
-  character.position = Config.positions[mongoChar.number]
+  character.position = Config.positions[mongoChar.number].slice()
   character.velocity = [ 0, 0 ]
   console.log(Config.positions[mongoChar.number])
 }
@@ -244,54 +245,54 @@ function shoot (bodyId, angle, power) {
 }
 
 function impactProjectile (projectile, explosionSize) {
-  Characters.find().forEach(function (char) {
-    var charBody = world.getBodyById(char.physicsId)
-    var relativePosition = [
-      charBody.position[0] - projectile.position[0],
-      charBody.position[1] - projectile.position[1]
-    ]
-    var distance = Math.sqrt(Math.pow((relativePosition[0]), 2) + Math.pow((relativePosition[1]), 2))
-    var radians = Math.atan2(relativePosition[1], relativePosition[0])
+  // Characters.find().forEach(function (char) {
+  //   var charBody = world.getBodyById(char.physicsId)
+  //   var relativePosition = [
+  //     charBody.position[0] - projectile.position[0],
+  //     charBody.position[1] - projectile.position[1]
+  //   ]
+  //   var distance = Math.sqrt(Math.pow((relativePosition[0]), 2) + Math.pow((relativePosition[1]), 2))
+  //   var radians = Math.atan2(relativePosition[1], relativePosition[0])
 
-    if (distance < explosionSize) {
-      var stepX = (explosionSize * Math.cos(radians)) / (Math.sqrt(distance)) * Config.actions.shoot.explosionForce
-      var stepY = (explosionSize * Math.sin(radians)) / (Math.sqrt(distance)) * Config.actions.shoot.explosionForce
-      charBody.applyForce([ charBody.velocity[0] + stepX, charBody.velocity[1] + stepY ], charBody.position)
-    }
-  })
+  //   if (distance < explosionSize) {
+  //     var stepX = (explosionSize * Math.cos(radians)) / (Math.sqrt(distance)) * Config.actions.shoot.explosionForce
+  //     var stepY = (explosionSize * Math.sin(radians)) / (Math.sqrt(distance)) * Config.actions.shoot.explosionForce
+  //     charBody.applyForce([ charBody.velocity[0] + stepX, charBody.velocity[1] + stepY ], charBody.position)
+  //   }
+  // })
 
   Bodies.remove({ physicsId: projectile.id })
   world.removeBody(projectile)
 }
 
 function genTerrain () {
-  var bounds = [
+  var walls = [
     {
       x: 0,
       y: 400,
-      width: 10,
+      width: 30,
       height: 800
     },
     {
       x: 400,
       y: 800,
       width: 800,
-      height: 10
+      height: 30
     },
     {
       x: 800,
       y: 400,
-      width: 10,
+      width: 30,
       height: 800
     },
     {
       x: 400,
       y: 0,
       width: 800,
-      height: 10
+      height: 30
     },
   ]
-  bounds.forEach(function (island) {
+  walls.forEach(function (island) {
     var boundsBody = new p2.Body({
       type: p2.Body.STATIC,
       position: [ island.x, island.y ]
@@ -300,5 +301,39 @@ function genTerrain () {
     boundsBody.addShape(boundsShape)
     boundsBody.data = { type: 'bounds' }
     world.addBody(boundsBody)
+  })
+
+  var tables = [
+    {
+      x: 250,
+      y: 250,
+      radius: 50
+    },
+    {
+      x: 550,
+      y: 250,
+      radius: 50
+    },
+    {
+      x: 250,
+      y: 550,
+      radius: 50
+    },
+    {
+      x: 550,
+      y: 550,
+      radius: 50
+    }
+  ]
+
+  tables.forEach(function (table) {
+    var tableBody = new p2.Body({
+      type: p2.Body.STATIC,
+      position: [ table.x, table.y ]
+    })
+    tableShape = new p2.Circle(table.radius)
+    tableBody.addShape(tableShape)
+    tableBody.data = { type: 'obstacle' }
+    world.addBody(tableBody)
   })
 }
