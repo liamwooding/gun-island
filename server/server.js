@@ -85,10 +85,18 @@ Meteor.startup(function () {
     activeBodies: []
   })
 
-
   // We'll start with a world
   world = new p2.World({
     gravity: [ 0, 0 ]
+  })
+
+  world.on('addBody', function (event) {
+    Bodies.insert({
+      physicsId: event.body.id,
+      position: event.body.position,
+      shapes: event.body.shapes,
+      data: event.body.data
+    })
   })
 
   world.on('impact', function (impact) {
@@ -134,21 +142,23 @@ function tickPhysics (newTurn) {
   tick++
   world.step(0.017)
 
-  world.bodies.forEach(function (body) {
+  var bodyPositions = world.bodies.map(function (body) {
     if (body.data && body.data.type === 'explosion') {
       body.data.size += body.data.size * 0.4
       if (body.data.size > body.data.maxSize) world.removeBody(body)
     }
-    var bodyObject = {
+    return {
       physicsId: body.id,
-      position: body.position,
-      shapes: body.shapes,
-      data: body.data
+      x: body.position[0],
+      y: body.position[1]
     }
-    var mongoBody = Bodies.findOne({ physicsId: body.id })
-    if (mongoBody) Bodies.update(mongoBody, bodyObject)
-    else Bodies.insert(bodyObject)
   })
+
+  BodiesStream.emit('positions', bodyPositions)
+  BodiesStream.permissions.read(function (userId, eventName) {
+    return true
+  })
+
   if (Date.now() >= lastTurnTime + Config.playTime) {
     console.log('Starting new turn')
     
@@ -217,7 +227,7 @@ function shoot (bodyId, angle, power) {
   var startX = Math.cos(radians) * 20
   var startY = Math.sin(radians) * 25
   var projectileBody = new p2.Body({
-    mass: Config.actions.shoot.bulletMass,
+    mass: 1,
     position: [player.position[0] + startX, player.position[1] - startY]
   })
   var projectileShape = new p2.Circle(2)
@@ -255,44 +265,6 @@ function impactProjectile (projectile, explosionSize) {
 }
 
 function genTerrain () {
-  // var obstacles = [
-  //   {
-  //     x: 500,
-  //     y: 400,
-  //     width: 150,
-  //     height: 200
-  //   },
-  //   {
-  //     x: 0,
-  //     y: 400,
-  //     width: 150,
-  //     height: 150
-  //   },
-  //   {
-  //     x: 300,
-  //     y: 800,
-  //     width: 800,
-  //     height: 50
-  //   },
-  //   {
-  //     x: 900,
-  //     y: 500,
-  //     width: 50,
-  //     height: 200
-  //   },
-  // ]
-
-  // obstacles.forEach(function (island) {
-  //   var obstacleBody = new p2.Body({
-  //     type: p2.Body.STATIC,
-  //     position: [ island.x, island.y ]
-  //   })
-  //   obstacleShape = new p2.Rectangle(island.width, island.height)
-  //   obstacleBody.addShape(obstacleShape)
-  //   obstacleBody.data = { type: 'obstacle' }
-  //   world.addBody(obstacleBody)
-  // })
-
   var bounds = [
     {
       x: 0,

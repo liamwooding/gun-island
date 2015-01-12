@@ -79,41 +79,38 @@ Template.game.rendered = function () {
         bodyGraphics.mongoId = id
       world.addChild(bodyGraphics)
     },
-    changed: function (id, fields) {
-      if (!fields) return
-      var body = Bodies.findOne(id)
-      var pixiBody = world.children.filter(function (child) {
-        return child.graphicsData[0].shape.physicsId === body.physicsId
-      })[0]
-      pixiBody.position = {
-        x: body.position[0],
-        y: body.position[1]
-      }
-    },
     removed: function (id) {
-      console.log(id)
       var pixiBody = world.children.filter(function (child) {
         return child.mongoId === id
       })[0]
-      console.log(pixiBody)
       world.removeChild(pixiBody)
     }
   })
 
   Turns.find().observeChanges({
     added: function (id, turn) {
-      console.log('added', id, turn)
       Game.state = turn.state
       Game.lastTurn = turn.time
       if (Game.state === 'play') endTurn()
     },
     changed: function (id, fields) {
-      console.log('changed', id, fields)
       if (!fields) return
       if (fields.state) Game.state = fields.state
       if (Game.state === 'turn') startTurn()
       if (Game.state === 'play') endTurn()
     }
+  })
+
+  BodiesStream.on('positions', function (positions) {
+    positions.forEach(function (position) {
+      var pixiBody = world.children.filter(function (child) {
+        return child.graphicsData[0].shape.physicsId === position.physicsId
+      })[0]
+      pixiBody.position = {
+        x: position.x,
+        y: position.y
+      }
+    })
   })
 
   setupUI()
@@ -217,7 +214,6 @@ function aim (callback) {
   * to tell it to stop.
   */
   hammer.on('panstart', function (event) {
-    console.log(event)
     // HammerJS tells us where the user started dragging relative to the page, not the canvas - translate here
     // We grab the position at the start of the drag and remember it to draw a nice arrow from
     var center = {
@@ -248,8 +244,8 @@ function aim (callback) {
 }
 
 function shoot (angle, power) {
+  power = 100
   Game.shotsFired++
-  console.log(Game.shotsFired)
   var radians = angle * Math.PI / 180
   player.moveTo(player.position)
   player.lineTo(player.position.x + (power * Math.cos(radians) * 2), renderer.view.height - player.position.y - (power * Math.sin(radians) * 2))
@@ -279,7 +275,6 @@ function p2VerticesToPoints (p2Body) {
   var points = p2Body.shapes[0].vertices.map(function (vertex) {
     return new pixi.Point(vertex[0], vertex[1])
   })
-  console.log(points)
   return points
 }
 
