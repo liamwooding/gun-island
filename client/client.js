@@ -1,10 +1,17 @@
 pixi = PIXI
 hammer = null
 stage = null
-world = null
+pixiWorld = null
 ui = null
 renderer = null
 player = null
+hostUserId = null
+
+p2World = null
+var pause = true
+var tick = 0
+var lastTurnTime
+var turnTimeout
 
 Game = {
   state: null,
@@ -19,12 +26,43 @@ Game = {
   uiContext: null
 }
 
+Template.username.events({
+  'click #username button': function (e) {
+    var username = $('#username input').val()
+    if (!Meteor.users.findOne({ username: username })) {
+      Accounts.createUser({
+        username: username,
+        password: 'bangbang'
+      }, function (err) {
+        if (err) console.error(err)
+        Meteor.loginWithPassword(username, 'bangbang', function (err) {
+          if (err) console.error(err)
+          else {
+            console.log('Logged in with username', username)
+            addPlayer(username)
+          }
+        })
+      })
+    } else {
+      Meteor.loginWithPassword(username, 'bangbang', function (err) {
+        if (err) console.error(err)
+        else {
+          console.log('Logged in with username', username)
+          addPlayer(username)
+        }
+      })
+    }
+  }
+})
+
+Meteor.startup(initPhysics)
+
 Template.game.rendered = function () {
   stage = new pixi.Stage(parseInt(Config.styles.ground.fillStyle.substring(1), 16))
   // We add physics objects to the world, then move the "camera" by changing the world's position
-  world = new pixi.DisplayObjectContainer()
+  pixiWorld = new pixi.DisplayObjectContainer()
   ui = new pixi.DisplayObjectContainer()
-  stage.addChild(world)
+  stage.addChild(pixiWorld)
   // The UI should be static tho
   stage.addChild(ui)
   renderer = new pixi.autoDetectRenderer(window.innerWidth, window.innerHeight, {
@@ -32,11 +70,11 @@ Template.game.rendered = function () {
   })
   document.body.appendChild(renderer.view)
 
-  world.pivot = {
+  pixiWorld.pivot = {
     x: renderer.view.width / 2,
     y: renderer.view.height / 2
   }
-  world.scale.x = world.scale.y = 0.9
+  pixiWorld.scale.x = pixiWorld.scale.y = 0.9
 
   // Setup HammerJS, the mouse/touch gesture library we'll use for the controls
   hammer = new Hammer(renderer.view)
@@ -54,36 +92,52 @@ Template.game.rendered = function () {
     $(this).addClass('active')
     Game.state = 'aiming-shot'
     aim(function (angle, power) {
-      shoot(angle, power)
+      declareShot(angle, power)
     })
   })
 
   Meteor.subscribe('GameState')
   Meteor.subscribe('Turns')
-  Meteor.subscribe('Characters', {
+  Meteor.subscribe('Hosts')
+  Meteor.subscribe('Bodies', {
     onReady: function () {
+      Bodies.find().forEach(function (body) {
+        console.log(body)
+        startRenderingBody(body)
+      })
       requestAnimationFrame(render)
-      if (!localStorage.userId) localStorage.userId = Meteor.uuid()
+    }
+  })
+  Meteor.subscribe('Players')
 
-      if (Characters.find({ userId: localStorage.userId }).count() === 0) {
-        Meteor.call('addPlayer', localStorage.userId)
+  Players.find().observeChanges({
+    added: function (id, player) {
+      console.log(player.username, Bodies.find().count())
+      if (amHost() && Bodies.find({ 'data.username': player.username }).count() === 0) {
+        Bodies.insert({
+          type: 'circle',
+          position: [400, 400],
+          radius: 15,
+          mass: 5,
+          damping: 0.9,
+          data: {
+            type: 'player',
+            username: player.username
+          }
+        })
       }
     }
   })
-  Meteor.subscribe('Bodies')
 
   Bodies.find().observeChanges({
     added: function (id, body) {
-      var bodyGraphics = getGraphicsFromBody(body)
-      if (body.data && body.data.userId === localStorage.userId) player = bodyGraphics
-        bodyGraphics.mongoId = id
-      world.addChild(bodyGraphics)
+      startRenderingBody(body)
     },
     removed: function (id) {
-      var pixiBody = world.children.filter(function (child) {
+      var pixiBody = pixiWorld.children.filter(function (child) {
         return child.mongoId === id
       })[0]
-      world.removeChild(pixiBody)
+      pixiWorld.removeChild(pixiBody)
     }
   })
 
@@ -101,9 +155,15 @@ Template.game.rendered = function () {
     }
   })
 
+  Hosts.find().observeChanges({
+    added: function (id, host) {
+      hostUserId = host.userId
+    }
+  })
+
   BodiesStream.on('positions', function (positions) {
     positions.forEach(function (position) {
-      var pixiBody = world.children.filter(function (child) {
+      var pixiBody = pixiWorld.children.filter(function (child) {
         return child.graphicsData[0].shape.physicsId === position.physicsId
       })[0]
       if (pixiBody) pixiBody.position = {
@@ -116,34 +176,41 @@ Template.game.rendered = function () {
   setupUI()
 
   setupCameraControls()
+
   requestAnimationFrame(render)
+}
+
+function startRenderingBody (body) {
+  console.log('Attempting to render', body)
+  var p2Body = makeP2Body(body)
+  if (p2Body) p2World.addBody(p2Body)
+  var bodyGraphics = getGraphicsFromBody(body)
+  if (body.data && body.data.username === Meteor.user().username) player = bodyGraphics
+    bodyGraphics.mongoId = body._id
+  pixiWorld.addChild(bodyGraphics)
 }
 
 function getGraphicsFromBody (body) {
   var pixiBody
-  var shape = body.shapes[0]
-  if (shape.type === 4) {
+  if (body.type === 'plane') {
     pixiBody = new pixi.Rectangle(-10000, 0, renderer.view.width + 20000, 1)
-  } else if (shape.type === 1) {
-    pixiBody = new pixi.Circle(0, 0, shape.radius)
-  } else if (shape.type === 32) {
-    pixiBody = new pixi.Rectangle(-shape.width / 2, -shape.height / 2, body.shapes[0].width, body.shapes[0].height)
-  } else if (shape.type === 2 && body.data.type === 'explosion') {
-    pixiBody = new pixi.Circle(-body.data.size / 2, -body.data.size / 2, -body.data.size)
-  } else if (shape.vertices) {
-    pixiBody = new pixi.Polygon(p2VerticesToPoints(body))
+  } else if (body.type === 'circle') {
+    pixiBody = new pixi.Circle(0, 0, body.radius)
+  } else if (body.type === 'rectangle') {
+    pixiBody = new pixi.Rectangle(-body.width / 2, -body.height / 2, body.width, body.height)
   } else {
-    console.warn('The heck is this:', shape.type)
+    console.warn('The heck is this:', body.type)
   }
   pixiBody.physicsId = body.physicsId
   pixiBody.mongoId = body._id
 
   var graphics = new pixi.Graphics()
-  if (body.data && body.data.type) {
-    graphics.beginFill(parseInt(Config.styles[body.data.type].fillStyle.substring(1), 16))
-    graphics.lineWidth = Config.styles[body.data.type].lineWidth || 0
-    graphics.lineColor = Config.styles[body.data.type].lineColor || 0xFFFFFF
-  } else graphics.beginFill(0xFFFFFF)
+  // if (body.data && body.data.type) {
+  //   graphics.beginFill(parseInt(Config.styles[body.data.type].fillStyle.substring(1), 16))
+  //   graphics.lineWidth = Config.styles[body.data.type].lineWidth || 0
+  //   graphics.lineColor = Config.styles[body.data.type].lineColor || 0xFFFFFF
+  // } else 
+  graphics.beginFill(0xFFFFFF)
 
   graphics.drawShape(pixiBody)
   graphics.endFill()
@@ -152,6 +219,28 @@ function getGraphicsFromBody (body) {
     y: body.position[1]
   }
   return graphics
+}
+
+function makeP2Body (body) {
+  var existingBodies = p2World.bodies.filter(function (b) {
+    if (b.id === body.physicsId) {
+      console.log('body with id', b.id, 'exists')
+      return b
+    }
+  })
+  if (existingBodies.length) return null
+  var p2Body = new p2.Body({
+    position: body.position || [0, 0],
+    mass: body.mass || 1,
+    damping: body.damping || 0
+  })
+  p2Body.id = body.physicsId
+  p2Body.data = body.data
+  if (body.type === 'circle') {
+    var p2Shape = new p2.Circle(body.radius)
+    p2Body.addShape(p2Shape)
+  }
+  return body
 }
 
 function startTurn () {
@@ -164,16 +253,18 @@ function startTurn () {
   aim(shoot)
 }
 
-
 function endTurn () {
   $('#turn-timer').remove()
   Game.shotsFired = 0
 }
 
 function render () {
-  if (player) world.position = {
-    x: (renderer.view.width / 2 - player.position.x) * world.scale.x + (renderer.view.width/2),
-    y: (renderer.view.height / 2 - player.position.y) * world.scale.y + (renderer.view.height/2)
+  if (amHost()) {
+    tickPhysics()
+  }
+  if (player) pixiWorld.position = {
+    x: (renderer.view.width / 2 - player.position.x) * pixiWorld.scale.x + (renderer.view.width/2),
+    y: (renderer.view.height / 2 - player.position.y) * pixiWorld.scale.y + (renderer.view.height/2)
   }
   renderer.render(stage)
   requestAnimationFrame(render)
@@ -182,14 +273,14 @@ function render () {
 function setupCameraControls () {
   $(document).on('mousewheel', function (event) {
     var scale = event.deltaY / 60
-    world.scale.x += scale
-    world.scale.y += scale
-    if (world.scale.x > 10) {
-      world.scale.x = world.scale.y = 10
+    pixiWorld.scale.x += scale
+    pixiWorld.scale.y += scale
+    if (pixiWorld.scale.x > 10) {
+      pixiWorld.scale.x = pixiWorld.scale.y = 10
       return
     }
-    if (world.scale.x < 0.4) {
-      world.scale.x = world.scale.y = 0.4
+    if (pixiWorld.scale.x < 0.4) {
+      pixiWorld.scale.x = pixiWorld.scale.y = 0.4
       return
     }
   })
@@ -246,14 +337,14 @@ function aim (callback) {
   })
 }
 
-function shoot (angle, power) {
+function declareShot (angle, power) {
   power = 100
   Game.shotsFired++
   var radians = angle * Math.PI / 180
   player.moveTo(player.position)
   player.lineTo(player.position.x + (power * Math.cos(radians) * 2), renderer.view.height - player.position.y - (power * Math.sin(radians) * 2))
 
-  Meteor.call('declareAction', localStorage.userId, {
+  Meteor.call('declareAction', Meteor.user().username, {
     action: 'shoot',
     angle: angle,
     power: power,
@@ -262,14 +353,11 @@ function shoot (angle, power) {
   if (Game.shotsFired < Config.actions.shotsPerTurn) aim(shoot)
 }
 
+
 function updateArrow (center, angle, power) {
   var radians = angle * Math.PI / 180
   Game.arrowGraphics.clear()
   Game.arrowGraphics.lineStyle(2, 0)
-  // Game.arrowGraphics.position = {
-  //   x: center.x,
-  //   y: renderer.view.height - center.y
-  // }
   Game.arrowGraphics.moveTo(center.x, renderer.view.height - center.y)
   Game.arrowGraphics.lineTo(center.x + (power * Math.cos(radians) * 2), renderer.view.height - center.y - (power * Math.sin(radians) * 2))
 }
@@ -288,4 +376,158 @@ function translateDistanceToPower (distance) {
   // The maths are easier if our 'max power' is 100
   power = power * 400
   return power
+}
+
+function amHost () {
+  return Meteor.userId() === hostUserId
+}
+
+function killPlayer (id) {
+  Players.update(id, { $inc: { deaths: 1 } })
+}
+
+function initPhysics () {
+// We'll start with a world
+  p2World = new p2.World({
+    gravity: [ 0, 0 ]
+  })
+
+  p2World.on('addBody', function (event) {
+    var physicsId = Meteor.uuid()
+    console.log('added body with physicsId:', physicsId)
+    if (amHost()) {
+      console.log('inserting body into DB')
+      Bodies.insert({
+        physicsId: physicsId,
+        position: event.body.position,
+        shapes: event.body.shapes,
+        data: event.body.data
+      })
+    }
+  })
+
+  p2World.on('impact', function (impact) {
+    if (amHost()) {
+      var impactedProjectile, typeA, typeB
+      if (impact.bodyA.data && impact.bodyA.data.type) typeA = impact.bodyA.data.type
+      if (impact.bodyB.data && impact.bodyB.data.type) typeB = impact.bodyB.data.type
+      
+      if (typeA === 'projectile') impactProjectile(impact.bodyA, 40)
+      if (typeB === 'projectile') impactProjectile(impact.bodyB, 40)
+
+      if (typeA === 'player' && typeB === 'projectile') killPlayer(impact.bodyA)
+      if (typeB === 'player' && typeA === 'projectile') killPlayer(impact.bodyB)
+    }
+  })
+}
+
+function tickPhysics (newTurn) {
+  if (Players.find().count() === 0) {
+    Meteor.setTimeout(function () {
+      tickPhysics(true)
+    }, 1000)
+    return
+  }
+  if (newTurn === true) {
+    console.log('Rendering')
+    lastTurnTime = Date.now()
+    var turnNumber = Turns.find().count()
+    Players.find().forEach(function (player) {
+      if (player.lastTurn && player.lastTurn.number === turnNumber - 1) {
+        if (player.lastTurn.shot1) shoot(player.physicsId, player.lastTurn.shot1.angle, player.lastTurn.shot1.power)
+        if (player.lastTurn.shot2) shoot(player.physicsId, player.lastTurn.shot2.angle, player.lastTurn.shot2.power)
+      }
+    })
+  }
+  tick++
+  p2World.step(0.017)
+
+  var bodyPositions = p2World.bodies.map(function (body) {
+    if (body.data && body.data.type === 'explosion') {
+      body.data.size += body.data.size * 0.4
+      if (body.data.size > body.data.maxSize) p2World.removeBody(body)
+    }
+    return {
+      physicsId: body.id,
+      x: body.position[0],
+      y: body.position[1],
+      angularVelocity: body.angularVelocity
+    }
+  })
+
+  BodiesStream.emit('positions', bodyPositions)
+
+  if (Date.now() >= lastTurnTime + Config.playTime) {
+    console.log('Starting new turn')
+    
+    pause = true
+    lastTurnTime = Date.now()
+    var lastTurn = Turns.findOne({ number: Turns.find().count() })
+    Turns.update(lastTurn._id, { $set: { state: 'turn' } })
+    turnTimeout = Meteor.setTimeout(function () {
+      if (pause) {
+        Turns.insert({
+          number: Turns.find().count() + 1,
+          state: 'play'
+        })
+        pause = false
+        tickPhysics(true)
+      }
+    }, Config.turnTime)
+  }
+  if (!pause) Meteor.setTimeout(tickPhysics, Math.round(1000 / 60))
+}
+
+// function addPlayer (username) {
+//   var playerBody = new p2.Body({
+//     mass: 5,
+//     position: Config.positions[Players.find().count()],
+//     fixedRotation: true
+//   })
+
+//   var playerShape = new p2.Circle(15)
+//   playerBody.addShape(playerShape)
+//   playerBody.data = {
+//     type: 'player',
+//     username: username
+//   }
+//   playerBody.damping = 0.9
+//   p2World.addBody(playerBody)
+// }
+
+// function addP2Body (body) {
+//   var p2Body = new p2.Body({
+
+//   })
+// }
+
+function shoot (bodyId, angle, power) {
+  var player = p2World.getBodyById(bodyId)
+  var shootCfg = Config.actions.shoot
+  // We use the angle to work out how many pixels we should move the projectile each frame
+  var radians = angle * Math.PI / 180
+  var stepX = (power * Math.cos(radians))
+  var stepY = (power * Math.sin(radians))
+  var startX = Math.cos(radians) * 20
+  var startY = Math.sin(radians) * 25
+  var projectileBody = new p2.Body({
+    mass: 1,
+    position: [player.position[0] + startX, player.position[1] - startY]
+  })
+  var projectileShape = new p2.Circle(2)
+  projectileShape.material = projectileMaterial
+  projectileBody.addShape(projectileShape)
+  projectileBody.data = {
+    type: 'projectile',
+    shooterId: bodyId
+  }
+
+  p2World.addBody(projectileBody)
+  projectileBody.velocity = [ stepX * shootCfg.velocityFactor, -stepY * shootCfg.velocityFactor ]
+  player.applyForce([ -stepX * shootCfg.kickBackFactor, stepY * shootCfg.kickBackFactor ], player.position )
+}
+
+function impactProjectile (projectile, explosionSize) {
+  Bodies.remove({ physicsId: projectile.id })
+  p2World.removeBody(projectile)
 }

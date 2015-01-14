@@ -5,6 +5,7 @@
 
 <body>
   {{> game}}
+  {{> username}}
 </body>
 
 <template name='game'>
@@ -22,4 +23,11 @@
     <p class='aiming-jump'>Aim a jump by dragging in the opposite direction</p>
     <p class='aiming-shot'>Aim a shot by dragging in the opposite direction</p>
   </div> -->
+</template>
+
+<template name='username'>
+  <div id='username'>
+    <input type='text' placeholder='Username'>
+    <button>Change username</button>
+  </div>
 </template>

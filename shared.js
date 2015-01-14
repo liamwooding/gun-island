@@ -1,8 +1,8 @@
 GameState = new Mongo.Collection('GameState')
-Characters = new Mongo.Collection('Characters')
+Players = new Mongo.Collection('Players')
 Turns = new Mongo.Collection('Turns')
 Bodies = new Mongo.Collection('Bodies')
-
+Hosts = new Mongo.Collection('Hosts')
 BodiesStream = new Meteor.Stream('bodies')
 
 Config = {
@@ -35,7 +35,7 @@ Config = {
     ground: {
       fillStyle: '#F2D5A5'
     },
-    character: {
+    player: {
       fillStyle: '#6E513B'
     },
     projectile: {
