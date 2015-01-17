@@ -94,6 +94,26 @@ Meteor.startup(function () {
     number: 1,
     state: 'play'
   })
+
+  Players.find().observeChanges({
+    added: function (id, player) {
+      console.log(player.username, Bodies.find().count())
+      if (Bodies.find({ 'data.username': player.username }).count() === 0) {
+        Bodies.insert({
+          shape: 'circle',
+          position: [400, 400],
+          velocity: [0, 0],
+          radius: 15,
+          mass: 5,
+          damping: 0.9,
+          data: {
+            type: 'player',
+            username: player.username
+          }
+        })
+      }
+    }
+  })
 })
 
 Accounts.onLogin(function (login) {

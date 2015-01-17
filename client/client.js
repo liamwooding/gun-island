@@ -101,33 +101,10 @@ Template.game.rendered = function () {
   Meteor.subscribe('Hosts')
   Meteor.subscribe('Bodies', {
     onReady: function () {
-      Bodies.find().forEach(function (body) {
-        console.log(body)
-        startRenderingBody(body)
-      })
       requestAnimationFrame(render)
     }
   })
   Meteor.subscribe('Players')
-
-  Players.find().observeChanges({
-    added: function (id, player) {
-      console.log(player.username, Bodies.find().count())
-      if (amHost() && Bodies.find({ 'data.username': player.username }).count() === 0) {
-        Bodies.insert({
-          type: 'circle',
-          position: [400, 400],
-          radius: 15,
-          mass: 5,
-          damping: 0.9,
-          data: {
-            type: 'player',
-            username: player.username
-          }
-        })
-      }
-    }
-  })
 
   Bodies.find().observeChanges({
     added: function (id, body) {
@@ -176,14 +153,14 @@ Template.game.rendered = function () {
   setupUI()
 
   setupCameraControls()
-
-  requestAnimationFrame(render)
 }
 
 function startRenderingBody (body) {
-  console.log('Attempting to render', body)
   var p2Body = makeP2Body(body)
-  if (p2Body) p2World.addBody(p2Body)
+  if (p2Body) {
+    console.log('Adding body to world:', p2Body)
+    p2World.addBody(p2Body)
+  }
   var bodyGraphics = getGraphicsFromBody(body)
   if (body.data && body.data.username === Meteor.user().username) player = bodyGraphics
     bodyGraphics.mongoId = body._id
@@ -192,24 +169,24 @@ function startRenderingBody (body) {
 
 function getGraphicsFromBody (body) {
   var pixiBody
-  if (body.type === 'plane') {
+  if (body.shape === 'plane') {
     pixiBody = new pixi.Rectangle(-10000, 0, renderer.view.width + 20000, 1)
-  } else if (body.type === 'circle') {
+  } else if (body.shape === 'circle') {
     pixiBody = new pixi.Circle(0, 0, body.radius)
-  } else if (body.type === 'rectangle') {
+  } else if (body.shape === 'rectangle') {
     pixiBody = new pixi.Rectangle(-body.width / 2, -body.height / 2, body.width, body.height)
   } else {
-    console.warn('The heck is this:', body.type)
+    console.warn('The heck is this:', body.shape)
   }
   pixiBody.physicsId = body.physicsId
   pixiBody.mongoId = body._id
 
   var graphics = new pixi.Graphics()
-  // if (body.data && body.data.type) {
-  //   graphics.beginFill(parseInt(Config.styles[body.data.type].fillStyle.substring(1), 16))
-  //   graphics.lineWidth = Config.styles[body.data.type].lineWidth || 0
-  //   graphics.lineColor = Config.styles[body.data.type].lineColor || 0xFFFFFF
-  // } else 
+  if (body.data && body.data.type) {
+    graphics.beginFill(parseInt(Config.styles[body.data.type].fillStyle.substring(1), 16))
+    graphics.lineWidth = Config.styles[body.data.type].lineWidth || 0
+    graphics.lineColor = Config.styles[body.data.type].lineColor || 0xFFFFFF
+  } else 
   graphics.beginFill(0xFFFFFF)
 
   graphics.drawShape(pixiBody)
@@ -236,11 +213,12 @@ function makeP2Body (body) {
   })
   p2Body.id = body.physicsId
   p2Body.data = body.data
-  if (body.type === 'circle') {
+  if (body.shape === 'circle') {
     var p2Shape = new p2.Circle(body.radius)
     p2Body.addShape(p2Shape)
   }
-  return body
+  p2Body.velocity = body.velocity
+  return p2Body
 }
 
 function startTurn () {
@@ -392,20 +370,6 @@ function initPhysics () {
     gravity: [ 0, 0 ]
   })
 
-  p2World.on('addBody', function (event) {
-    var physicsId = Meteor.uuid()
-    console.log('added body with physicsId:', physicsId)
-    if (amHost()) {
-      console.log('inserting body into DB')
-      Bodies.insert({
-        physicsId: physicsId,
-        position: event.body.position,
-        shapes: event.body.shapes,
-        data: event.body.data
-      })
-    }
-  })
-
   p2World.on('impact', function (impact) {
     if (amHost()) {
       var impactedProjectile, typeA, typeB
@@ -510,20 +474,20 @@ function shoot (bodyId, angle, power) {
   var stepY = (power * Math.sin(radians))
   var startX = Math.cos(radians) * 20
   var startY = Math.sin(radians) * 25
-  var projectileBody = new p2.Body({
-    mass: 1,
-    position: [player.position[0] + startX, player.position[1] - startY]
-  })
-  var projectileShape = new p2.Circle(2)
-  projectileShape.material = projectileMaterial
-  projectileBody.addShape(projectileShape)
-  projectileBody.data = {
-    type: 'projectile',
-    shooterId: bodyId
-  }
 
-  p2World.addBody(projectileBody)
-  projectileBody.velocity = [ stepX * shootCfg.velocityFactor, -stepY * shootCfg.velocityFactor ]
+  Bodies.insert({
+    shape: 'circle',
+    position: [player.position[0] + startX, player.position[1] - startY],
+    velocity: [ stepX * shootCfg.velocityFactor, -stepY * shootCfg.velocityFactor ],
+    radius: 2,
+    mass: 1,
+    damping: 0,
+    data: {
+      type: 'projectile',
+      shooterId: bodyId
+    }
+  })
+
   player.applyForce([ -stepX * shootCfg.kickBackFactor, stepY * shootCfg.kickBackFactor ], player.position )
 }
 
