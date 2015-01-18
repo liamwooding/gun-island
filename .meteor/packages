@@ -8,3 +8,4 @@ meteor-platform
 accounts-base
 streams
 accounts-password
+mrt:moment

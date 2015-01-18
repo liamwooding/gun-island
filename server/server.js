@@ -70,11 +70,19 @@ Meteor.startup(function () {
     insert: function (userId, doc) {
       var host = Hosts.findOne()
       return host ? host.userId === userId : false
+    },
+    remove: function (userId, doc) {
+      var host = Hosts.findOne()
+      return host ? host.userId === userId : false
     }
   })
 
   Turns.allow({
     update: function (userId, doc) {
+      var host = Hosts.findOne()
+      return host ? host.userId === userId : false
+    },
+    insert: function (userId, doc) {
       var host = Hosts.findOne()
       return host ? host.userId === userId : false
     }
@@ -90,16 +98,12 @@ Meteor.startup(function () {
     activeBodies: []
   })
 
-  Turns.insert({
-    number: 1,
-    state: 'play'
-  })
-
   Players.find().observeChanges({
     added: function (id, player) {
       console.log(player.username, Bodies.find().count())
       if (Bodies.find({ 'data.username': player.username }).count() === 0) {
         Bodies.insert({
+          physicsId: player.userId,
           shape: 'circle',
           position: [400, 400],
           velocity: [0, 0],

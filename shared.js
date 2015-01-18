@@ -6,7 +6,7 @@ Hosts = new Mongo.Collection('Hosts')
 BodiesStream = new Meteor.Stream('bodies')
 
 Config = {
-  turnTime: 10000,
+  turnTime: 5000,
   playTime: 2000,
   maxVelocity: 400,
   dampingFactor: 5000,
